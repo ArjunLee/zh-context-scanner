@@ -161,7 +161,7 @@ def render_whole_file_preview(result: FileTranslationResult, diff_page: int = 0)
     info_table.add_column(width=40)
     info_table.add_row(f"📄 {I18n.get('preview_file_label')}", str(result.file_path)[-50:])
     info_table.add_row(f"🎯 {I18n.get('preview_mode_label')}", result.mode.value)
-    
+
     # Line match status
     if result.lines_match:
         status = f"[green]✓ {I18n.get('preview_lines_match')} {result.line_count_original}[/green]"
@@ -206,15 +206,15 @@ def render_whole_file_preview(result: FileTranslationResult, diff_page: int = 0)
     # Pagination for changed sections
     sections_per_page = 6
     total_diff_pages = max(1, (len(changed_sections) + sections_per_page - 1) // sections_per_page)
-    
+
     # Ensure page is within bounds
     diff_page = max(0, min(diff_page, total_diff_pages - 1))
-    
+
     # Get sections for current page
     start_idx = diff_page * sections_per_page
     end_idx = min(start_idx + sections_per_page, len(changed_sections))
     shown_sections = changed_sections[start_idx:end_idx]
-    
+
     # Render changed sections with ellipsis between
     prev_end = 0
     for section_num, (section_start, section_lines) in enumerate(shown_sections):
@@ -222,25 +222,25 @@ def render_whole_file_preview(result: FileTranslationResult, diff_page: int = 0)
         if section_start > prev_end + 1 and prev_end > 0:
             ellipsis = I18n.get("preview_ellipsis")
             diff_table.add_row("...", f"[dim]{ellipsis}[/dim]", f"[dim]{ellipsis}[/dim]")
-        
+
         for line_num, orig, trans in section_lines:
             # Truncate long lines
             orig_display = orig[:33] if len(orig) > 33 else orig
             trans_display = trans[:33] if len(trans) > 33 else trans
             diff_table.add_row(str(line_num), orig_display, trans_display)
-        
+
         prev_end = section_start + len(section_lines) - 1
 
     # Combine into Panel
     total_changes = sum(len(s[1]) for s in changed_sections)
     summary_template = I18n.get("preview_total_summary")
     summary_text = summary_template.replace('{changes}', str(total_changes)).replace('{sections}', str(len(changed_sections)))
-    
+
     # Add pagination hint if multiple pages
     pagination_hint = ""
     if total_diff_pages > 1:
         pagination_hint = f" [dim]| 变更段 {diff_page + 1}/{total_diff_pages} (← → 翻页)[/dim]"
-    
+
     content = Group(
         info_table,
         Text(""),
@@ -264,8 +264,13 @@ async def handle_whole_file_translation(
     config: Config,
     file_path: Path,
     mode: TranslationMode,
+    relative_root: Path | None = None,
 ) -> bool:
     """Handle whole-file translation for a single file.
+    
+    Args:
+        relative_root: Root path for calculating backup relative paths.
+                       If None, uses config.root_path (default behavior).
     
     Returns:
         True if translation was successful and applied, False otherwise.
@@ -333,8 +338,9 @@ async def handle_whole_file_translation(
                 return False
 
     if selected == 0:  # Apply
-        success = translator.apply_translation(result, config.backup_dir, config.root_path)
-        
+        root_for_backup = relative_root or config.root_path
+        success = translator.apply_translation(result, config.backup_dir, root_for_backup)
+
         # Build completion panel with professional styling
         if success:
             # Success panel with checklist
@@ -348,7 +354,7 @@ async def handle_whole_file_translation(
             complete_table.add_row("[ ] 1.", "cargo check")
             complete_table.add_row("[ ] 2.", "npm run typecheck")
             complete_table.add_row("[ ] 3.", "git diff --stat")
-            
+
             complete_panel = Panel(
                 Group(
                     complete_table,
@@ -373,14 +379,14 @@ async def handle_whole_file_translation(
                 box=box.ROUNDED,
                 padding=(1, 1),
             )
-        
+
         # Show completion panel with Live
         with Live(console=console, auto_refresh=True, refresh_per_second=10, screen=True) as live:
             live.update(complete_panel)
             read_key()
-        
+
         return success
-    
+
     return False
 
 
@@ -475,9 +481,10 @@ async def handle_scan_results(
                         continue
 
                 file_path = items[selected][0]
-                # Execute translation and get result
-                translated = await handle_whole_file_translation(config, file_path, mode)
-                
+                # Use input_dir as relative_root for manual path mode
+                root_for_backup = input_dir or config.root_path
+                translated = await handle_whole_file_translation(config, file_path, mode, relative_root=root_for_backup)
+
                 # Refresh the results list if translation was successful
                 if translated:
                     # Re-scan the file to get updated chinese line count
