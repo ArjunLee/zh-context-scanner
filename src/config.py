@@ -36,8 +36,8 @@ class Config:
     """Application configuration."""
     root_path: Path                     # Project root directory
     backup_dir: Path                    # Backup directory path
-    project_name: str = "VaultSave"     # Project name (for display)
-    scan_targets: list[ScanTarget] = field(default_factory=lambda: DEFAULT_VAULTSAVE_TARGETS)
+    project_name: str = ""             # Project name (empty means not loaded)
+    scan_targets: list[ScanTarget] = field(default_factory=list)
     global_excludes: list[str] = field(default_factory=lambda: DEFAULT_GLOBAL_EXCLUDES)
 
     # LLM Configuration (OpenAI-compatible API)
@@ -67,8 +67,8 @@ class Config:
 
         return cls(
             root_path=root,
-            project_name=config_data.get("project_name", "VaultSave"),
-            scan_targets=config_data.get("scan_targets", DEFAULT_VAULTSAVE_TARGETS),
+            project_name=config_data.get("project_name", ""),
+            scan_targets=[ScanTarget(**t) for t in config_data.get("scan_targets", [])],
             global_excludes=config_data.get("global_excludes", DEFAULT_GLOBAL_EXCLUDES),
             backup_dir=path_registry.backup_dir,
             llm_api_key=llm_config["api_key"],
@@ -84,32 +84,50 @@ class Config:
 
     @staticmethod
     def _detect_root() -> Path:
-        """Auto-detect project root (traverse up to find root with multiple indicators)."""
-        cwd = Path.cwd()
-        indicators = ["pyproject.toml", "Cargo.toml", "package.json", ".git"]
+        """Auto-detect project root by traversing upward.
 
-        # Traverse up to 4 levels to find project root
+        Strategy: traverse all levels, return the one with structure indicators.
+        Structure indicators (apps/, src-tauri/) are stronger than file indicators.
+        """
+        cwd = Path.cwd()
+
+        # Strong indicators (multi-module project structure)
+        structure_indicators = ["apps", "src-tauri", "backend", "frontend"]
+        # Weak indicators (single project files)
+        file_indicators = ["pyproject.toml", "Cargo.toml", "package.json", ".git"]
+
+        # Traverse upward and collect candidates
+        candidates: list[tuple[Path, int, int]] = []
         current = cwd
-        for _ in range(4):
-            # Count how many indicators exist at this level
-            count = sum(1 for ind in indicators if (current / ind).exists())
-            # If 2+ indicators exist, this is likely the project root
-            if count >= 2:
-                return current
-            if current.parent == current:  # Reached filesystem root
+        for _ in range(5):
+            structure_score = sum(
+                1 for ind in structure_indicators if (current / ind).exists()
+            )
+            file_score = sum(
+                1 for ind in file_indicators if (current / ind).exists()
+            )
+            candidates.append((current, structure_score, file_score))
+
+            if current.parent == current:
                 break
             current = current.parent
 
-        # Fallback: check cwd and its immediate parent
-        for path in [cwd, cwd.parent]:
-            for indicator in indicators:
-                if (path / indicator).exists():
-                    return path
+        # Priority 1: return level with highest structure_score
+        best_structure = max(candidates, key=lambda x: x[1])
+        if best_structure[1] >= 1:
+            return best_structure[0]
+
+        # Priority 2: return level with highest file_score
+        best_file = max(candidates, key=lambda x: x[2])
+        if best_file[2] >= 2:
+            return best_file[0]
+
+        # Fallback: return cwd
         return cwd
 
     @staticmethod
     def _get_scan_targets(config_file: str | None) -> list[ScanTarget]:
-        """Get scan targets from config file (YAML or JSON) or defaults."""
+        """Get scan targets from config file (YAML or JSON)."""
         if config_file:
             config_path = Path(config_file)
             if config_path.exists():
@@ -122,7 +140,6 @@ class Config:
                         return [ScanTarget(**t) for t in data.get("scan_targets", [])]
                     except Exception as e:
                         print(f"Warning: Failed to parse YAML config: {e}")
-                        print("Falling back to default VaultSave targets")
 
                 # Fallback to JSON
                 try:
@@ -130,9 +147,8 @@ class Config:
                     return [ScanTarget(**t) for t in data.get("targets", [])]
                 except Exception:
                     print(f"Warning: Failed to parse JSON config: {config_path}")
-                    print("Falling back to default VaultSave targets")
 
-        return DEFAULT_VAULTSAVE_TARGETS
+        return []
 
     @staticmethod
     def _load_config_file(config_file: str | None) -> dict:
@@ -234,41 +250,7 @@ class Config:
         return config
 
 
-# VaultSave project default scan targets
-DEFAULT_VAULTSAVE_TARGETS: list[ScanTarget] = [
-    ScanTarget(
-        path="apps/desktop/ui",
-        extensions=[".tsx", ".ts", ".jsx", ".js", ".css"],
-        exclude_subdirs=["locales", "DebugPage", "dist", "node_modules"],
-    ),
-    ScanTarget(
-        path="apps/desktop/src-tauri/src",
-        extensions=[".rs"],
-        exclude_subdirs=["target", "gen"],
-    ),
-    ScanTarget(
-        path="scripts/pipeline",
-        extensions=[".py"],
-        exclude_subdirs=["__pycache__"],
-    ),
-    ScanTarget(
-        path="ci_pipeline.py",
-        extensions=[".py"],
-        exclude_subdirs=[],
-    ),
-    ScanTarget(
-        path="shared",
-        extensions=[".toml"],
-        exclude_subdirs=[],
-    ),
-    ScanTarget(
-        path="sync_app_meta.py",
-        extensions=[".py"],
-        exclude_subdirs=[],
-    ),
-]
-
-# Global exclude patterns
+# Global exclude patterns (generic defaults)
 DEFAULT_GLOBAL_EXCLUDES: list[str] = [
     "dist",
     "node_modules",
@@ -277,6 +259,8 @@ DEFAULT_GLOBAL_EXCLUDES: list[str] = [
     ".git",
     "__pycache__",
     ".venv",
+    "build",
+    "vendor",
 ]
 
 
@@ -290,6 +274,7 @@ def parse_args() -> argparse.Namespace:
     # Positional/optional arguments
     parser.add_argument("--root", help="Project root directory (auto-detected if not specified)")
     parser.add_argument("--config", help="YAML/JSON config file for custom scan targets (e.g., my_project.yaml)")
+    parser.add_argument("--setup", action="store_true", help="Force run setup wizard to configure project")
 
     # Scan mode
     parser.add_argument("--scan", action="store_true", help="Run scan and output report")
