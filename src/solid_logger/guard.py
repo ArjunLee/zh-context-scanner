@@ -21,20 +21,20 @@ from pathlib import Path
 class GuardConfig:
     """
     Design Background:
-    - Desktop shortcuts may be triggered rapidly, causing HTTP request floods
-    - Request logger writes one line per request, leading to IO write storms
-    - Four-layer protection:
-      1) Duplicate log dedup (10s window)
-      2) Line length truncation (1000 chars)
-      3) Write rate circuit breaker (100 lines/sec -> 5s pause)
-      4) File size cap (20MB -> stop writing)
+    - zh-context-scanner is a developer tool, needs full traceability
+    - Translation logs should NOT be rate-limited (developers need to audit)
+    - Relaxed config for developer tool scenario:
+      1) Dedup disabled for translation details (0s window)
+      2) Line truncation (1000 chars) - keep
+      3) Rate limit disabled (1000 lines/sec - essentially unlimited)
+      4) File size cap (20MB) - keep
     """
 
-    dedupe_window_s: float = 10.0
+    dedupe_window_s: float = 0.0
     max_line_chars: int = 1000
     rate_window_s: float = 1.0
-    rate_max_lines: int = 100
-    rate_block_s: float = 5.0
+    rate_max_lines: int = 1000
+    rate_block_s: float = 0.5
     max_file_bytes: int = 20 * 1024 * 1024
 
 
