@@ -32,8 +32,8 @@ class I18n:
     MESSAGES: dict[str, dict[str, str]] = {
         # === Header ===
         "header_title": {
-            "en": "zh-context-scanner v1.0",
-            "zh": "zh-context-scanner v1.0",
+            "en": "zh-context-scanner v1.0.2",
+            "zh": "zh-context-scanner v1.0.2",
         },
         "header_language": {
             "en": "Language: English",
@@ -783,6 +783,206 @@ class I18n:
         "exit_subtitle": {
             "en": "Press Ctrl+C to close",
             "zh": "按 Ctrl+C 关闭",
+        },
+        # === Setup Wizard ===
+        "setup_title": {
+            "en": "Setup Wizard",
+            "zh": "设置向导",
+        },
+        "setup_intro": {
+            "en": "Configure zh-context-scanner for your project",
+            "zh": "为您的项目配置中文扫描工具",
+        },
+        "setup_quick_option": {
+            "en": "Quick Setup (Interactive)",
+            "zh": "快速设置（交互式）",
+        },
+        "setup_manual_option": {
+            "en": "Manual Setup (Edit YAML)",
+            "zh": "手动设置（编辑 YAML）",
+        },
+        "setup_exit_option": {
+            "en": "Exit",
+            "zh": "退出",
+        },
+        "setup_complete_title": {
+            "en": "Setup Complete!",
+            "zh": "设置完成！",
+        },
+        "setup_success_title": {
+            "en": "Success",
+            "zh": "成功",
+        },
+        "setup_project_created": {
+            "en": "Project configured:",
+            "zh": "已配置项目:",
+        },
+        "setup_config_saved": {
+            "en": "Config saved to:",
+            "zh": "配置已保存至:",
+        },
+        "setup_press_enter": {
+            "en": "Press Enter to continue...",
+            "zh": "按 Enter 继续...",
+        },
+        "setup_manual_hint": {
+            "en": "Please manually edit:",
+            "zh": "请手动编辑:",
+        },
+        "setup_manual_config_location": {
+            "en": "Project config file location:",
+            "zh": "项目配置文件位置:",
+        },
+        "setup_manual_edit_hint": {
+            "en": "Edit this file to customize scan targets and excludes",
+            "zh": "编辑此文件可自定义扫描目标和排除目录",
+        },
+        "setup_press_enter_exit": {
+            "en": "Press Enter to exit...",
+            "zh": "按 Enter 退出...",
+        },
+        "setup_no_api_key": {
+            "en": "API Key not configured. Please edit .env.local first.",
+            "zh": "API Key 未配置。请先编辑 .env.local。",
+        },
+        "setup_api_key_hint": {
+            "en": "API Key location:",
+            "zh": "API Key 位置:",
+        },
+        "setup_wizard_menu_hint": {
+            "en": "Select setup method",
+            "zh": "选择设置方式",
+        },
+        # === Tech Stack Selection ===
+        "tech_stack_title": {
+            "en": "Select Tech Stacks",
+            "zh": "选择技术栈",
+        },
+        "tech_stack_description": {
+            "en": "Choose all stacks in your project (multi-select)",
+            "zh": "选择项目中使用的所有技术栈（多选）",
+        },
+        "tech_stack_footer_hint": {
+            "en": "Space/Enter Toggle | ESC Back",
+            "zh": "Space/Enter 切换选中 | ESC 返回上一步",
+        },
+        "tech_stack_selected_count": {
+            "en": "Selected: {} stacks",
+            "zh": "已选择: {} 个技术栈",
+        },
+        "tech_stack_min_warning": {
+            "en": "Please select at least one tech stack",
+            "zh": "请至少选择一个技术栈",
+        },
+        "tech_stack_confirm": {
+            "en": "Confirm Selection",
+            "zh": "确认选择",
+        },
+        # === Path Input ===
+        "path_input_title": {
+            "en": "Enter Scan Target Path",
+            "zh": "输入扫描目标路径",
+        },
+        "path_add_title": {
+            "en": "Add Scan Targets",
+            "zh": "添加扫描目标",
+        },
+        "path_selected_stacks": {
+            "en": "Selected stacks: {}",
+            "zh": "已选技术栈 {}",
+        },
+        "path_add_for_stacks": {
+            "en": "Add scan targets for them",
+            "zh": "为它们添加扫描的目标",
+        },
+        "path_added_targets": {
+            "en": "Added targets:",
+            "zh": "已添加目标:",
+        },
+        "path_pending_add": {
+            "en": "pending...",
+            "zh": "待添加...",
+        },
+        "path_input_label": {
+            "en": "Input path (drag/paste/type):",
+            "zh": "输入路径(支持文件夹拖拽/粘贴/输入):",
+        },
+        "path_add_footer_hint": {
+            "en": "Enter Add | Empty+Enter Finish | Tab Select | ESC Back",
+            "zh": "Enter 确认添加 | 空输入+Enter 完成 | Tab 选择模式 | ESC 返回",
+        },
+        "path_select_footer_hint": {
+            "en": "Up/Down Select | D Delete | Tab/Backspace Exit Select | ESC Back",
+            "zh": "↑↓ 选择 | D 删除选中 | Tab/Backspace 退出选择 | ESC 返回",
+        },
+        "path_removed": {
+            "en": "Removed target:",
+            "zh": "已移除目标:",
+        },
+        "path_select_mode_hint": {
+            "en": "Select mode: use Up/Down to select, D to delete",
+            "zh": "选择模式: ↑↓ 选择目标, D 删除选中",
+        },
+        "path_min_one_warning": {
+            "en": "Please add at least one scan target",
+            "zh": "请至少添加一个扫描目标",
+        },
+        "path_drag_hint": {
+            "en": "Drag folder here or type path manually",
+            "zh": "拖拽文件夹到此或手动输入路径",
+        },
+        "path_add_another": {
+            "en": "Add another scan target?",
+            "zh": "是否添加其他扫描目标？",
+        },
+        "path_yes": {
+            "en": "Yes, add another",
+            "zh": "是，继续添加",
+        },
+        "path_no": {
+            "en": "No, proceed to finish",
+            "zh": "否，完成设置",
+        },
+        "path_empty_warning": {
+            "en": "Path cannot be empty",
+            "zh": "路径不能为空",
+        },
+        "path_not_found_warning": {
+            "en": "Path not found: {}",
+            "zh": "路径不存在: {}",
+        },
+        "path_is_file_warning": {
+            "en": "Path is a file. Single file scan supported.",
+            "zh": "路径是文件。支持单文件扫描。",
+        },
+        "path_scan_target_added": {
+            "en": "Scan target added:",
+            "zh": "已添加扫描目标:",
+        },
+        # === Project Name ===
+        "project_name_title": {
+            "en": "Enter Project Name",
+            "zh": "输入项目名称",
+        },
+        "project_name_explanation": {
+            "en": "Used for config filename and reports",
+            "zh": "用于配置文件命名和报告显示",
+        },
+        "project_name_example": {
+            "en": "Example: MyProject, VaultSave",
+            "zh": "示例: MyProject, VaultSave",
+        },
+        "project_name_empty_warning": {
+            "en": "Project name cannot be empty",
+            "zh": "项目名称不能为空",
+        },
+        "project_name_sanitized": {
+            "en": "Name sanitized to: {}",
+            "zh": "名称已过滤为: {}",
+        },
+        "footer_input_hint": {
+            "en": "Type name | Enter Confirm | ESC Back",
+            "zh": "输入名称 | Enter 确认 | ESC 返回",
         },
     }
 

@@ -7,7 +7,6 @@ Created: 2026-04-15
 
 from __future__ import annotations
 
-
 # Pagination settings
 PAGE_SIZE = 15
 MAX_DISPLAY_ITEMS = 100
@@ -37,11 +36,11 @@ STYLE_ACCENT = "accent"
 # Menu icons
 ICON_SCAN = "🔍"
 ICON_INCREMENTAL = "📊"
-ICON_MANUAL = "📁"
+ICON_MANUAL = "👍️"
 ICON_BACKUP = "💾"
 ICON_LANGUAGE = "🌐"
 ICON_MODE = "📋"
-ICON_EXIT = "👋"
+ICON_EXIT = "🚪"
 ICON_FILE = "📄"
 ICON_DETAIL = "🔎"
 ICON_NOTICE = "ℹ️"
@@ -56,3 +55,12 @@ ICON_MODE_FULL = "📝"
 ICON_SETTINGS = "🔧"
 ICON_CHECK = "✓"
 ICON_ARROW = "→"
+
+# Setup wizard icons
+ICON_QUICK = "🌠"
+ICON_WIZARD = "🧙"
+ICON_FOLDER = "📂"
+ICON_CHECKBOX_ON = "✓"
+ICON_CHECKBOX_OFF = "○"
+ICON_CONFIG = "⚙️"
+ICON_API_KEY = "🔑"
