@@ -824,7 +824,9 @@ async def handle_manual_path(config: Config, translation_mode: TranslationMode =
             # Use mode from main menu, or prompt user if not set
             mode_to_use = translation_mode if translation_mode else select_translation_mode()
             if mode_to_use:
-                await handle_whole_file_translation(config, path, mode_to_use)
+                # For single file, use its parent directory as relative_root
+                file_parent = path.parent if path.is_file() else path
+                await handle_whole_file_translation(config, path, mode_to_use, relative_root=file_parent)
         else:
             with Live(console=console, auto_refresh=True, refresh_per_second=10, screen=True) as live:
                 panel = render_notice_panel(f"ℹ️ {I18n.get('tui_no_chinese_file')}")
