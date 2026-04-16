@@ -10,7 +10,9 @@ Related modules: config.py, models.py
 from __future__ import annotations
 
 import json
+import os
 import time
+from collections.abc import Generator
 from pathlib import Path
 
 import regex
@@ -49,11 +51,11 @@ def contains_chinese(text: str) -> bool:
 
 def is_comment_line(line: str, file_ext: str) -> bool:
     """Check if a line is a comment line based on file extension.
-    
+
     Args:
         line: The line to check
         file_ext: File extension (e.g., '.rs', '.py')
-    
+
     Returns:
         True if the line is a comment, False otherwise
     """
@@ -85,11 +87,11 @@ def file_contains_chinese(file_path: Path) -> bool:
 
 def count_chinese_lines(file_path: Path, mode: TranslationMode = TranslationMode.FULL) -> int:
     """Count lines containing Chinese text in a file based on translation mode.
-    
+
     Args:
         file_path: Path to the file to check
         mode: Translation mode - FULL counts all Chinese, COMMENT_ONLY counts only comments
-    
+
     Returns:
         Number of lines containing Chinese text (filtered by mode)
     """
@@ -142,6 +144,101 @@ def collect_files(
                     files.append(file)
 
     return sorted(files)
+
+
+def stream_files_for_scan(
+    root: Path,
+    targets: list[ScanTarget],
+    global_excludes: list[str],
+) -> Generator[Path, None, int]:
+    """Stream files one-by-one for real-time progress updates.
+
+    Uses os.walk() for incremental yielding, enabling immediate UI feedback
+    during file collection phase. No sorting - yields in traversal order.
+
+    Args:
+        root: Project root path
+        targets: Scan targets configuration
+        global_excludes: Global exclude patterns
+
+    Yields:
+        Path objects for each matching file
+
+    Returns:
+        Total count of files yielded (via generator return value)
+    """
+    exclude_set = set(global_excludes)
+    total = 0
+
+    for target in targets:
+        target_path = Path(target.path)
+        if not target_path.is_absolute():
+            target_path = root / target_path
+        if not target_path.exists():
+            continue
+
+        exclude_set.update(target.exclude_subdirs)
+
+        for root_dir, dirs, files in os.walk(target_path):
+            dirs[:] = [d for d in dirs if d not in exclude_set]
+
+            for file in files:
+                if any(file.endswith(ext) for ext in target.extensions):
+                    yield Path(root_dir) / file
+                    total += 1
+
+    return total
+
+
+def stream_files_modified_after(
+    root: Path,
+    targets: list[ScanTarget],
+    global_excludes: list[str],
+    after_timestamp: float,
+) -> Generator[Path, None, int]:
+    """Stream modified files one-by-one for incremental scan progress.
+
+    Same streaming pattern as stream_files_for_scan(), with mtime filtering.
+
+    Args:
+        root: Project root path
+        targets: Scan targets configuration
+        global_excludes: Global exclude patterns
+        after_timestamp: Unix timestamp to compare against
+
+    Yields:
+        Path objects for files modified after timestamp
+
+    Returns:
+        Total count of modified files yielded
+    """
+    exclude_set = set(global_excludes)
+    total = 0
+
+    for target in targets:
+        target_path = Path(target.path)
+        if not target_path.is_absolute():
+            target_path = root / target_path
+        if not target_path.exists():
+            continue
+
+        exclude_set.update(target.exclude_subdirs)
+
+        for root_dir, dirs, files in os.walk(target_path):
+            dirs[:] = [d for d in dirs if d not in exclude_set]
+
+            for file in files:
+                if any(file.endswith(ext) for ext in target.extensions):
+                    file_path = Path(root_dir) / file
+                    try:
+                        mtime = file_path.stat().st_mtime
+                        if mtime > after_timestamp:
+                            yield file_path
+                            total += 1
+                    except OSError:
+                        continue
+
+    return total
 
 
 def find_files_with_chinese(
@@ -265,8 +362,5 @@ def find_files_with_chinese_incremental(
         line_count = count_chinese_lines(file, mode)
         if line_count > 0:
             results.append((file, line_count))
-
-    # Update timestamp after successful scan
-    save_last_scan_timestamp(log_dir)
 
     return results

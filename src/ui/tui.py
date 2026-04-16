@@ -10,7 +10,6 @@ Related modules: whole_file_translator.py, backup_manager.py, scanner.py
 from __future__ import annotations
 
 import json
-import time
 from datetime import datetime
 from pathlib import Path
 
@@ -34,12 +33,14 @@ from src.models import FileTranslationResult, TranslationMode
 from src.paths import PathRegistry
 from src.preference import PreferenceManager, UserPreferences
 from src.scanner import (
-    collect_files,
     contains_chinese,
     count_chinese_lines,
+    load_last_scan_timestamp,
+    save_last_scan_timestamp,
+    stream_files_for_scan,
+    stream_files_modified_after,
 )
 from src.ui.components import (
-    ScanProgress,
     print_error,
     print_info,
     print_success,
@@ -76,6 +77,7 @@ from src.ui.keyboard import (
     KEY_UP,
     read_key,
 )
+from src.ui.scan_progress_live import ScanProgressLive
 from src.whole_file_translator import WholeFileTranslator
 
 # Console with custom theme (matching VaultSave_Database_Review style)
@@ -124,8 +126,10 @@ def select_translation_mode() -> TranslationMode:
     return mode
 
 
-async def run_full_scan(config: Config, mode: TranslationMode = TranslationMode.FULL) -> list[tuple[Path, int]]:
-    """Run full scan - return files with Chinese text.
+async def run_full_scan(
+    config: Config, mode: TranslationMode = TranslationMode.FULL
+) -> list[tuple[Path, int]]:
+    """Run full scan with real-time streaming progress.
 
     Args:
         config: Configuration
@@ -134,33 +138,33 @@ async def run_full_scan(config: Config, mode: TranslationMode = TranslationMode.
     Returns:
         List of (file_path, chinese_line_count) tuples
     """
-    files = collect_files(
+    progress = ScanProgressLive(console, mode="full")
+    progress.start()
+
+    results: list[tuple[Path, int]] = []
+    for file in stream_files_for_scan(
         config.root_path,
         config.scan_targets,
         config.global_excludes,
-    )
-    progress = ScanProgress(console)
-    progress.start(len(files))
-
-    results: list[tuple[Path, int]] = []
-    for file in files:
+    ):
         line_count = count_chinese_lines(file, mode=mode)
+        progress.update_file(file, line_count > 0, line_count)
         if line_count > 0:
             results.append((file, line_count))
-        progress.advance()
 
-    progress.stop()
-    # Update timestamp after full scan for future incremental scans
-    from src.paths import PathRegistry
+    progress.finish()
+
     tool_root = PathRegistry.detect_tool_root()
     path_registry = PathRegistry(tool_root)
-    from src.scanner import save_last_scan_timestamp
     save_last_scan_timestamp(path_registry.log_dir)
+
     return results
 
 
-async def run_incremental_scan(config: Config, mode: TranslationMode = TranslationMode.FULL) -> list[tuple[Path, int]]:
-    """Run incremental scan - only files modified after last scan.
+async def run_incremental_scan(
+    config: Config, mode: TranslationMode = TranslationMode.FULL
+) -> list[tuple[Path, int]]:
+    """Run incremental scan with real-time streaming progress.
 
     Args:
         config: Configuration
@@ -169,36 +173,34 @@ async def run_incremental_scan(config: Config, mode: TranslationMode = Translati
     Returns:
         List of (file_path, chinese_line_count) tuples for modified files
     """
-    from src.paths import PathRegistry
-    from src.scanner import find_files_with_chinese_incremental
-
     tool_root = PathRegistry.detect_tool_root()
     path_registry = PathRegistry(tool_root)
 
-    # Get last scan timestamp for display
-    from src.scanner import load_last_scan_timestamp
     last_timestamp = load_last_scan_timestamp(path_registry.log_dir)
 
-    results = find_files_with_chinese_incremental(
+    progress = ScanProgressLive(console, mode="incremental", last_scan_time=last_timestamp)
+    progress.start()
+
+    results: list[tuple[Path, int]] = []
+    for file in stream_files_modified_after(
         config.root_path,
         config.scan_targets,
         config.global_excludes,
-        path_registry.log_dir,
-        mode,
-    )
+        last_timestamp,
+    ):
+        line_count = count_chinese_lines(file, mode=mode)
+        progress.update_file(file, line_count > 0, line_count)
+        if line_count > 0:
+            results.append((file, line_count))
 
-    # Display info about incremental scan
-    if last_timestamp > 0:
-        last_time_str = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(last_timestamp))
-        console.print(f"[cyan]Last scan: {last_time_str}[/]")
-        console.print(f"[green]Found {len(results)} modified files with Chinese text[/]")
+    progress.finish()
 
     return results
 
 
 def render_whole_file_preview(result: FileTranslationResult, diff_page: int = 0) -> Panel:
     """Render whole-file translation preview with git diff style and pagination.
-    
+
     Args:
         result: Translation result to preview
         diff_page: Current page number for diff display (0-indexed)
@@ -244,7 +246,11 @@ def render_whole_file_preview(result: FileTranslationResult, diff_page: int = 0)
             section_start = i
             section_lines = []
             # Collect consecutive changes (max 5 lines per section)
-            while i < total_lines and original_lines[i] != translated_lines[i] and len(section_lines) < 5:
+            while (
+                i < total_lines
+                and original_lines[i] != translated_lines[i]
+                and len(section_lines) < 5
+            ):
                 section_lines.append((i + 1, original_lines[i], translated_lines[i]))
                 i += 1
             changed_sections.append((section_start + 1, section_lines))
@@ -282,7 +288,9 @@ def render_whole_file_preview(result: FileTranslationResult, diff_page: int = 0)
     # Combine into Panel
     total_changes = sum(len(s[1]) for s in changed_sections)
     summary_template = I18n.get("preview_total_summary")
-    summary_text = summary_template.replace('{changes}', str(total_changes)).replace('{sections}', str(len(changed_sections)))
+    summary_text = summary_template.replace("{changes}", str(total_changes)).replace(
+        "{sections}", str(len(changed_sections))
+    )
 
     # Add pagination hint if multiple pages
     pagination_hint = ""
@@ -315,11 +323,11 @@ async def handle_whole_file_translation(
     relative_root: Path | None = None,
 ) -> bool:
     """Handle whole-file translation for a single file.
-    
+
     Args:
         relative_root: Root path for calculating backup relative paths.
                        If None, uses config.root_path (default behavior).
-    
+
     Returns:
         True if translation was successful and applied, False otherwise.
     """
@@ -395,8 +403,13 @@ async def handle_whole_file_translation(
             complete_table = Table(show_header=False, box=None, expand=True)
             complete_table.add_column(width=25)
             complete_table.add_column(width=35)
-            complete_table.add_row(f"[green]✓[/] {I18n.get('complete_status_label')}", f"[green]{I18n.get('complete_status_success')}[/]")
-            complete_table.add_row(f"[cyan]📦[/] {I18n.get('complete_backup_location')}", str(config.backup_dir)[-40:])
+            complete_table.add_row(
+                f"[green]✓[/] {I18n.get('complete_status_label')}",
+                f"[green]{I18n.get('complete_status_success')}[/]",
+            )
+            complete_table.add_row(
+                f"[cyan]📦[/] {I18n.get('complete_backup_location')}", str(config.backup_dir)[-40:]
+            )
             complete_table.add_row("", "")
             complete_table.add_row(f"[bold]{I18n.get('complete_verify_steps')}[/]", "")
             complete_table.add_row("[ ] 1.", "cargo check")
@@ -445,7 +458,7 @@ async def handle_scan_results(
     default_mode: TranslationMode | None = None,
 ) -> None:
     """Handle scan results - paginated file list with Live navigation.
-    
+
     Args:
         config: Configuration
         results: Scan results (file_path, chinese_line_count)
@@ -531,12 +544,15 @@ async def handle_scan_results(
                 file_path = items[selected][0]
                 # Use input_dir as relative_root for manual path mode
                 root_for_backup = input_dir or config.root_path
-                translated = await handle_whole_file_translation(config, file_path, mode, relative_root=root_for_backup)
+                translated = await handle_whole_file_translation(
+                    config, file_path, mode, relative_root=root_for_backup
+                )
 
                 # Refresh the results list if translation was successful
                 if translated:
                     # Re-scan the file to get updated chinese line count
                     from src.scanner import count_chinese_lines
+
                     new_count = count_chinese_lines(file_path, mode=mode)
                     # Update the results list
                     for idx, (path, count) in enumerate(results):
@@ -554,7 +570,11 @@ def render_preferences_panel(
 ) -> Panel:
     """Render preferences settings panel with current values."""
     # Build language display
-    lang_current = I18n.get("menu_language_chinese") if prefs.language == "zh" else I18n.get("menu_language_english")
+    lang_current = (
+        I18n.get("menu_language_chinese")
+        if prefs.language == "zh"
+        else I18n.get("menu_language_english")
+    )
     lang_line = f"{ICON_LANGUAGE} {I18n.get('preferences_language')}: {lang_current}"
 
     # Build translation mode display
@@ -786,6 +806,7 @@ def handle_backup_actions(config: Config, backup) -> str:
 
     elif selected == 3:  # Clean all
         import shutil
+
         all_backups = list_backups(config.backup_dir)
         for b in all_backups:
             shutil.rmtree(b.backup_path)
@@ -797,9 +818,11 @@ def handle_backup_actions(config: Config, backup) -> str:
         return "back"
 
 
-async def handle_manual_path(config: Config, translation_mode: TranslationMode = TranslationMode.COMMENT_ONLY) -> None:
+async def handle_manual_path(
+    config: Config, translation_mode: TranslationMode = TranslationMode.COMMENT_ONLY
+) -> None:
     """Handle manual path input with Live refresh navigation.
-    
+
     Args:
         config: Configuration
         translation_mode: Translation mode from main menu
@@ -810,7 +833,10 @@ async def handle_manual_path(config: Config, translation_mode: TranslationMode =
         while True:
             # Build input panel with current buffer
             input_text = Text()
-            input_text.append(buffer if buffer else I18n.get("tui_input_placeholder"), style="cyan" if buffer else "grey50")
+            input_text.append(
+                buffer if buffer else I18n.get("tui_input_placeholder"),
+                style="cyan" if buffer else "grey50",
+            )
             input_text.append("▏", style="white")
 
             footer = f"{I18n.get('manual_drag_hint')}\n{I18n.get('footer_menu_hint')}"
@@ -874,32 +900,45 @@ async def handle_manual_path(config: Config, translation_mode: TranslationMode =
             if mode_to_use:
                 # For single file, use its parent directory as relative_root
                 file_parent = path.parent if path.is_file() else path
-                await handle_whole_file_translation(config, path, mode_to_use, relative_root=file_parent)
+                await handle_whole_file_translation(
+                    config, path, mode_to_use, relative_root=file_parent
+                )
         else:
-            with Live(console=console, auto_refresh=True, refresh_per_second=10, screen=True) as live:
+            with Live(
+                console=console, auto_refresh=True, refresh_per_second=10, screen=True
+            ) as live:
                 panel = render_notice_panel(f"ℹ️ {I18n.get('tui_no_chinese_file')}")
                 live.update(panel)
                 read_key()
     else:
-        console.print(f"\n[cyan]{I18n.get('tui_scan_directory')} {path}[/]")
-        progress = ScanProgress(console)
-        all_files = list(path.glob("**/*"))
-        excludes = ["target", "dist", "node_modules", ".git", "__pycache__", "gen", ".venv"]
-        all_files = [f for f in all_files if f.is_file() and not any(exc in str(f) for exc in excludes)]
-        progress.start(len(all_files))
+        import os
+
+        progress = ScanProgressLive(console, mode="full")
+        progress.start()
+
+        excludes = {"target", "dist", "node_modules", ".git", "__pycache__", "gen", ".venv"}
 
         results: list[tuple[Path, int]] = []
-        for file in all_files:
-            line_count = count_chinese_lines(file, mode=translation_mode)
-            if line_count > 0:
-                results.append((file, line_count))
-            progress.advance()
-        progress.stop()
+        for root_dir, dirs, files in os.walk(path):
+            dirs[:] = [d for d in dirs if d not in excludes]
+
+            for file in files:
+                file_path = Path(root_dir) / file
+                line_count = count_chinese_lines(file_path, mode=translation_mode)
+                progress.update_file(file_path, line_count > 0, line_count)
+                if line_count > 0:
+                    results.append((file_path, line_count))
+
+        progress.finish()
 
         if results:
-            await handle_scan_results(config, results, input_dir=path, default_mode=translation_mode)
+            await handle_scan_results(
+                config, results, input_dir=path, default_mode=translation_mode
+            )
         else:
-            with Live(console=console, auto_refresh=True, refresh_per_second=10, screen=True) as live:
+            with Live(
+                console=console, auto_refresh=True, refresh_per_second=10, screen=True
+            ) as live:
                 panel = render_notice_panel(f"ℹ️ {I18n.get('tui_no_chinese_dir')}")
                 live.update(panel)
                 read_key()
@@ -981,7 +1020,9 @@ async def run_tui(config: Config) -> None:
         lang_info = LANG_MODES[I18n.lang()]
         # Rebuild title with new language
         title_text = Text()
-        title_text.append(f"{lang_info.emoji} {I18n.get('header_language')} | ", style="magenta bold")
+        title_text.append(
+            f"{lang_info.emoji} {I18n.get('header_language')} | ", style="magenta bold"
+        )
         title_text.append(f"zh-context-scanner v{__version__}", style="bold cyan")
         await run_tui(config)
         return

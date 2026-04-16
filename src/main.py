@@ -95,7 +95,8 @@ def entry() -> None:
         if config is None:
             return
     else:
-        config = Config.from_cli_args(args)
+        prefs = pref_manager.load()
+        config = Config.from_cli_args(args, config_file=prefs.last_config_file)
 
     if args.restore:
         run_restore(config)
