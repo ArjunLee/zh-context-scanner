@@ -1,0 +1,35 @@
+# File header terminology (cache hit, no API call needed)
+# Standard format: "// 文件名：xxx" → "// File name: xxx"
+file_header:
+  文件名: File name
+  功能描述: Description
+  作者: Author
+  创建日期: Created
+  最后修改日期: Last modified
+  关联模块: Related module
+
+# Technical terms (preserve as-is, no translation)
+technical_terms:
+- API
+- TOML
+- Tauri
+- Steam
+- JSON
+- YAML
+- HTTP
+- URL
+- React
+- Rust
+- Python
+- TypeScript
+- JavaScript
+- Windows
+- Linux
+- macOS
+- Epic
+- GOG
+- SteamID64
+- ludusavi
+- manifest
+- userdata
+- autocloud
