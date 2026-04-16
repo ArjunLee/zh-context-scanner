@@ -22,20 +22,26 @@ class UserPreferences:
 
     language: str = "zh"
     translation_mode: str = "comment_only"
+    last_config_file: str | None = None
+    setup_completed: bool = False
 
-    def to_dict(self) -> dict[str, str]:
+    def to_dict(self) -> dict[str, str | bool | None]:
         """Convert preferences to dictionary for JSON serialization."""
         return {
             "language": self.language,
             "translation_mode": self.translation_mode,
+            "last_config_file": self.last_config_file,
+            "setup_completed": self.setup_completed,
         }
 
     @classmethod
-    def from_dict(cls, data: dict[str, str]) -> UserPreferences:
+    def from_dict(cls, data: dict) -> UserPreferences:
         """Create preferences from dictionary."""
         return cls(
             language=data.get("language", "zh"),
             translation_mode=data.get("translation_mode", "comment_only"),
+            last_config_file=data.get("last_config_file"),
+            setup_completed=data.get("setup_completed", False),
         )
 
     def get_translation_mode(self) -> TranslationMode:
@@ -104,3 +110,31 @@ class PreferenceManager:
         prefs = self.load()
         I18n.set_lang(prefs.language)
         return prefs.get_translation_mode()
+
+    def update_config_file(self, config_path: str) -> UserPreferences:
+        """Update last config file path and mark setup completed."""
+        prefs = self.load()
+        prefs.last_config_file = config_path
+        prefs.setup_completed = True
+        self.save(prefs)
+        return prefs
+
+    def has_valid_config(self) -> bool:
+        """Check if a valid config file exists and is accessible."""
+        prefs = self.load()
+        if not prefs.setup_completed:
+            return False
+        if not prefs.last_config_file:
+            return False
+        config_path = Path(prefs.last_config_file)
+        return config_path.exists() and config_path.is_file()
+
+    def reset_if_invalid(self) -> None:
+        """Reset invalid config state if file is missing."""
+        prefs = self.load()
+        if prefs.last_config_file:
+            config_path = Path(prefs.last_config_file)
+            if not config_path.exists():
+                prefs.last_config_file = None
+                prefs.setup_completed = False
+                self.save(prefs)
