@@ -428,6 +428,10 @@ class I18n:
             "en": "Scanning files...",
             "zh": "扫描文件中...",
         },
+        "progress_collecting": {
+            "en": "Collecting files...",
+            "zh": "收集文件中...",
+        },
         "progress_translating": {
             "en": "Translating...",
             "zh": "翻译中...",
@@ -435,6 +439,58 @@ class I18n:
         "progress_replacing": {
             "en": "Replacing...",
             "zh": "替换中...",
+        },
+        "progress_title": {
+            "en": "Scanning Progress",
+            "zh": "扫描进度",
+        },
+        "progress_full_title": {
+            "en": "Full Scan",
+            "zh": "全量扫描",
+        },
+        "progress_incremental_title": {
+            "en": "Incremental Scan",
+            "zh": "增量扫描",
+        },
+        "progress_last_scan": {
+            "en": "Last full scan",
+            "zh": "上次全量扫描",
+        },
+        "progress_files_found": {
+            "en": "Files with Chinese",
+            "zh": "含中文文件",
+        },
+        "progress_collected": {
+            "en": "Scanned",
+            "zh": "已扫描",
+        },
+        "progress_elapsed": {
+            "en": "Elapsed",
+            "zh": "耗时",
+        },
+        "progress_hint": {
+            "en": "Press Ctrl+C to abort",
+            "zh": "按 Ctrl+C 可中断",
+        },
+        "progress_total_scanned": {
+            "en": "Total scanned",
+            "zh": "已扫描",
+        },
+        "progress_complete_title": {
+            "en": "Scan Complete",
+            "zh": "扫描完成",
+        },
+        "progress_complete_with_results": {
+            "en": "Found files containing Chinese text",
+            "zh": "已发现含中文的文件",
+        },
+        "progress_complete_no_results": {
+            "en": "No Chinese text found",
+            "zh": "未找到中文内容",
+        },
+        "progress_complete_hint": {
+            "en": "Press Enter to continue",
+            "zh": "按 Enter 继续",
         },
         # === Errors ===
         "error_no_api_key": {
