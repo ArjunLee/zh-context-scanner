@@ -1,0 +1,104 @@
+# zh-context-scanner Project Configuration Template
+#
+# This is a template file. Copy and modify for your own project.
+#
+# REQUIRED: This file must be provided to run the tool.
+# Without a valid config file, the tool will NOT work.
+#
+# Usage:
+#   1. Copy this file: example.Project_Config.yaml → Project_Config.yaml
+#   2. Edit Project_Config.yaml to match YOUR project structure
+#   3. Run: uv run python -m src.main --config Project_Config.yaml --root /your/project/root
+#
+# Quick Start:
+#   cd your_project_root
+#   cp tools/zh-context-scanner/example.Project_Config.yaml Project_Config.yaml
+#   # Edit Project_Config.yaml
+#   uv run python -m src.main --config Project_Config.yaml
+
+# =============================================================================
+# REQUIRED SECTION - scan_targets
+# =============================================================================
+# At least ONE scan target must be defined.
+# Each target has 3 fields:
+#   - path: Directory or file path (RELATIVE to project root)
+#   - extensions: File extensions to scan (e.g., [".ts", ".tsx", ".py", ".rs"])
+#   - exclude_subdirs: Subdirectories to skip (e.g., ["node_modules", "dist"])
+
+scan_targets:
+# Example 1: Simple frontend project (src directory)
+- path: "app/ui/src"
+  extensions:
+  - ".ts"
+  - ".tsx"
+  - ".js"
+  - ".jsx"
+  exclude_subdirs:
+  - "node_modules"
+  - "dist"
+  - "__tests__"
+
+# Example 2: Backend API (backend directory)
+- path: "backend"
+  extensions:
+  - ".py"
+  exclude_subdirs:
+  - "__pycache__"
+  - ".venv"
+  - "venv"
+
+# Example 3: Rust project (src-tauri/src for Tauri apps)
+- path: "src-tauri/src"
+  extensions:
+  - ".rs"
+  exclude_subdirs:
+  - "target"
+  - "gen"
+
+# Example 4: Single Python file
+- path: "main.py"
+  extensions:
+  - ".py"
+  exclude_subdirs: []
+
+# =============================================================================
+# OPTIONAL SECTION - project_name
+# =============================================================================
+# Displayed in logs and TUI header. Can be omitted.
+
+project_name: "My Project"
+
+# =============================================================================
+# OPTIONAL SECTION - global_excludes
+# =============================================================================
+# These directories are skipped in ALL scan targets.
+# If omitted, defaults to common build/cache directories.
+
+global_excludes:
+- "node_modules" # JS dependencies
+- "dist" # Build outputs
+- "build" # Python build
+- "target" # Rust build
+- ".git" # Git repository
+- "__pycache__" # Python cache
+- ".venv" # Python venv
+- "venv" # Python venv
+- ".idea" # IDE files
+- ".vscode" # IDE files
+
+# =============================================================================
+# NOTES
+# =============================================================================
+# - path can be a DIRECTORY or a SINGLE FILE
+# - extensions must start with dot (e.g., ".ts" not "ts")
+# - exclude_subdirs only applies within the target path
+# - global_excludes applies to ALL targets
+#
+# Common technology stacks:
+#   TypeScript/React: [".ts", ".tsx", ".js", ".jsx", ".css"]
+#   Python:           [".py"]
+#   Rust:             [".rs"]
+#   Go:               [".go"]
+#   Java:             [".java"]
+#   C/C++:            [".c", ".cpp", ".h", ".hpp"]
+#   Config files:     [".yaml", ".yml", ".toml", ".json"]
