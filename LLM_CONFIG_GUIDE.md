@@ -237,5 +237,5 @@ LLM_MODEL=local-model
 ---
 
 **Last Updated**: 2026-04-15  
-**Version**: v2.0
+**Version**: v1.0.2
 

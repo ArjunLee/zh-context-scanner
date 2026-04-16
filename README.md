@@ -103,6 +103,31 @@ LLM_API_KEY=sk-your-api-key
 
 ## Usage
 
+### ⚠️ Running Directory (Critical)
+
+**The tool auto-detects the project root, but you must run from the correct location**:
+
+| Scenario | Run From | Reason |
+|----------|----------|--------|
+| **VaultSave project** | `VaultSave/` or `VaultSave/tools/zh-context-scanner/` | Auto-detects VaultSave root |
+| **Other projects** | Your project root or use `--root` | Default config targets VaultSave paths |
+
+```bash
+# Option 1: Run from your project root (recommended)
+cd /your/project/root
+uv run python -m src.main
+
+# Option 2: Specify project root explicitly
+uv run python -m src.main --root /your/project/root
+
+# Option 3: Use custom config file for non-VaultSave projects
+uv run python -m src.main --config my_project.yaml --root /your/project/root
+```
+
+> **Hint**: Default scan targets are VaultSave-specific (`apps/desktop/ui`, `src-tauri/src`). For other projects, you must either:
+> 1. Use `--config` with your custom `scan_targets`
+> 2. Or use `--root` with default generic targets (if applicable)
+
 ### TUI Interactive Mode (Recommended)
 
 ```bash

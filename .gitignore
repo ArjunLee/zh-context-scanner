@@ -69,3 +69,4 @@ dev_docs/
 
 # User preferences (local config)
 config/preferences.json
+run_local.ps1

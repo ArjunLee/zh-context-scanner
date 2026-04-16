@@ -35,7 +35,7 @@ The launch scripts automatically clear this variable to ensure the tool uses its
 ## Main Menu Example
 
 ```
-┌─ zh-context-scanner v2.0 ──────────────────────────────────┐
+┌─ zh-context-scanner v1.0.2 ──────────────────────────────────┐
 │                                                           │
 │  Project root: /home/user/your-project                    │
 │  Language: English                                        │

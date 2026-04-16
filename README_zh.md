@@ -103,6 +103,31 @@ LLM_API_KEY=sk-your-api-key
 
 ## 使用方式
 
+### ⚠️ 运行目录（关键）
+
+**工具会自动检测项目根目录，但必须从正确位置运行**：
+
+| 场景 | 运行位置 | 原因 |
+|------|----------|------|
+| **VaultSave 项目** | `VaultSave/` 或 `VaultSave/tools/zh-context-scanner/` | 自动检测 VaultSave 根目录 |
+| **其他项目** | 你的项目根目录或使用 `--root` | 默认配置针对 VaultSave 路径 |
+
+```bash
+# 方式 1：从项目根目录运行（推荐）
+cd /your/project/root
+uv run python -m src.main
+
+# 方式 2：显式指定项目根目录
+uv run python -m src.main --root /your/project/root
+
+# 方式 3：非 VaultSave 项目使用自定义配置文件
+uv run python -m src.main --config my_project.yaml --root /your/project/root
+```
+
+> **提示**：默认扫描目标是 VaultSave 特有的（`apps/desktop/ui`, `src-tauri/src`）。其他项目必须：
+> 1. 使用 `--config` 配置你的 `scan_targets`
+> 2. 或使用 `--root` 指定项目目录
+
 ### TUI 交互模式（推荐）
 
 ```bash
