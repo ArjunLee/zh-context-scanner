@@ -14,7 +14,7 @@ from pathlib import Path
 
 class PathRegistry:
     """Centralized path registry for the tool.
-    
+
     Manages all tool-related paths: root, logs, reports, backups, config.
     """
 
@@ -48,10 +48,10 @@ class PathRegistry:
 
     def get_report_path(self, timestamp: str) -> Path:
         """Get report file path with timestamp.
-        
+
         Args:
             timestamp: Timestamp string (e.g., "20260415_124237")
-        
+
         Returns:
             Full path to report file
         """
@@ -75,8 +75,14 @@ class PathRegistry:
 
     @property
     def preferences_file(self) -> Path:
-        """User preferences file: tools/zh-context-scanner/config/preferences.json"""
-        return self.config_dir / "preferences.json"
+        """User preferences file in user config directory.
+
+        Cross-platform (same as project configs):
+            Windows: %APPDATA%/zh-context-scanner/config/preferences.json
+            macOS: ~/Library/Application Support/zh-context-scanner/config/preferences.json
+            Linux: ~/.config/zh-context-scanner/config/preferences.json
+        """
+        return get_user_config_dir() / "preferences.json"
 
     def ensure_directories(self) -> None:
         """Ensure all required directories exist."""
@@ -88,7 +94,7 @@ class PathRegistry:
     @classmethod
     def detect_tool_root(cls) -> Path:
         """Auto-detect tool root directory.
-        
+
         Traverses up from CWD to find tools/zh-context-scanner/
         """
         cwd = Path.cwd()
@@ -110,7 +116,7 @@ class PathRegistry:
         # Fallback: check if we're inside the tool directory
         if "zh-context-scanner" in cwd.parts:
             idx = cwd.parts.index("zh-context-scanner")
-            return Path(*cwd.parts[:idx + 1])
+            return Path(*cwd.parts[: idx + 1])
 
         return cwd / target
 

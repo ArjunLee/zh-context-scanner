@@ -53,16 +53,20 @@ class Config:
     input_report: Path | None = None    # Input report for --replace
 
     @classmethod
-    def from_cli_args(cls, args: argparse.Namespace) -> Self:
-        """Create config from CLI arguments."""
+    def from_cli_args(cls, args: argparse.Namespace, config_file: str | None = None) -> Self:
+        """Create config from CLI arguments.
+
+        Args:
+            args: CLI arguments
+            config_file: Optional config file path (from preferences)
+        """
         root = Path(args.root) if args.root else cls._detect_root()
         tool_root = PathRegistry.detect_tool_root()
         path_registry = PathRegistry(tool_root)
 
-        # Load config from file to get project name and global excludes
-        config_data = cls._load_config_file(args.config)
+        actual_config = args.config or config_file
+        config_data = cls._load_config_file(actual_config)
 
-        # Load LLM configuration
         llm_config = cls._load_llm_config(path_registry)
 
         return cls(
