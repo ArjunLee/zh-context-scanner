@@ -11,14 +11,14 @@ from __future__ import annotations
 
 import asyncio
 import json
-from pathlib import Path
 
 from rich.console import Console
 
+from src import __version__
+from src.backup_manager import restore_backup
 from src.config import Config, parse_args
-from src.backup_manager import list_backups, restore_backup
+from src.preference import PreferenceManager
 from src.scanner import find_files_with_chinese
-from src.models import ScanReport
 from src.ui.i18n import I18n
 
 console = Console()
@@ -67,17 +67,35 @@ def run_restore(config: Config) -> None:
 
 def entry() -> None:
     """Main entry point."""
-    from pathlib import Path
-    from src.solid_logger import configure_logging
     from src.paths import PathRegistry
+    from src.solid_logger import configure_logging
 
     args = parse_args()
-    config = Config.from_cli_args(args)
 
     # Setup logger with PathRegistry and rotation
     tool_root = PathRegistry.detect_tool_root()
     path_registry = PathRegistry(tool_root)
-    configure_logging(version="0.1.0", path_registry=path_registry)
+    configure_logging(version=__version__, path_registry=path_registry)
+
+    # Initialize preference manager
+    pref_manager = PreferenceManager()
+
+    # Reset invalid config state if file is missing
+    pref_manager.reset_if_invalid()
+
+    # Check if setup wizard should be triggered
+    needs_setup = (
+        not pref_manager.has_valid_config()
+        or args.setup
+    )
+
+    if needs_setup:
+        from src.ui.setup_wizard import run_setup_wizard
+        config = run_setup_wizard()
+        if config is None:
+            return
+    else:
+        config = Config.from_cli_args(args)
 
     if args.restore:
         run_restore(config)
@@ -92,10 +110,10 @@ def entry() -> None:
         asyncio.run(run_tui(config))
     except KeyboardInterrupt:
         # Graceful exit on Ctrl+C
+        from rich import box
         from rich.panel import Panel
         from rich.text import Text
-        from rich import box
-        
+
         exit_text = Text()
         exit_text.append("\n", end="")
         exit_text.append("Interrupted by user", style="yellow bold")
@@ -103,17 +121,17 @@ def entry() -> None:
         exit_text.append("Thank you for using ", style="dim")
         exit_text.append("zh-context-scanner", style="bold cyan")
         exit_text.append("\n\n", end="")
-        exit_text.append("✓ ", style="green")
+        exit_text.append("[OK] ", style="green")
         exit_text.append("Session terminated safely", style="green italic")
         exit_text.append("\n", end="")
-        exit_text.append("✓ ", style="green")
+        exit_text.append("[OK] ", style="green")
         exit_text.append("No data loss", style="green italic")
         exit_text.append("\n\n", end="")
-        exit_text.append("See you next time! 👋", style="bold magenta")
-        
+        exit_text.append("See you next time!", style="bold magenta")
+
         exit_panel = Panel(
             exit_text,
-            title="[bold yellow]⚠[/] Interrupted",
+            title="[bold yellow]![/] Interrupted",
             subtitle="[dim]Session ended by Ctrl+C[/]",
             border_style="yellow",
             box=box.ROUNDED,
