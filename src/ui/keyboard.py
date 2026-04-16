@@ -10,7 +10,6 @@ from __future__ import annotations
 import os
 import sys
 
-
 # Key constants - centralized keyboard mapping
 KEY_UP = "UP"
 KEY_DOWN = "DOWN"
@@ -20,6 +19,8 @@ KEY_ENTER = "ENTER"
 KEY_QUIT = "QUIT"
 KEY_BACK = "BACK"
 KEY_ESC = "ESC"
+KEY_SPACE = "SPACE"
+KEY_TAB = "TAB"
 KEY_OTHER = "OTHER"
 
 
@@ -43,6 +44,10 @@ def _read_key_windows() -> str:
         return KEY_ESC
     if ch == "\x08":
         return KEY_BACK
+    if ch == " ":
+        return KEY_SPACE
+    if ch == "\t":
+        return KEY_TAB
     if ch in ("\x00", "\xe0"):
         code = msvcrt.getwch()
         if code == "H":
@@ -75,6 +80,10 @@ def _read_key_posix() -> str:
             return KEY_QUIT
         if ch in ("\x7f", "\x08"):
             return KEY_BACK
+        if ch == " ":
+            return KEY_SPACE
+        if ch == "\t":
+            return KEY_TAB
         if ch == "\x1b":
             if select.select([sys.stdin], [], [], 0.03)[0]:
                 seq = sys.stdin.read(1)
