@@ -10,6 +10,7 @@ Related modules: whole_file_translator.py, backup_manager.py, scanner.py
 from __future__ import annotations
 
 import json
+import time
 from datetime import datetime
 from pathlib import Path
 
@@ -22,6 +23,7 @@ from rich.table import Table
 from rich.text import Text
 from rich.theme import Theme
 
+from src import __version__
 from src.backup_manager import (
     cleanup_backups,
     list_backups,
@@ -124,10 +126,13 @@ def select_translation_mode() -> TranslationMode:
 
 async def run_full_scan(config: Config, mode: TranslationMode = TranslationMode.FULL) -> list[tuple[Path, int]]:
     """Run full scan - return files with Chinese text.
-    
+
     Args:
         config: Configuration
         mode: Translation mode to filter which Chinese lines to count
+
+    Returns:
+        List of (file_path, chinese_line_count) tuples
     """
     files = collect_files(
         config.root_path,
@@ -145,6 +150,49 @@ async def run_full_scan(config: Config, mode: TranslationMode = TranslationMode.
         progress.advance()
 
     progress.stop()
+    # Update timestamp after full scan for future incremental scans
+    from src.paths import PathRegistry
+    tool_root = PathRegistry.detect_tool_root()
+    path_registry = PathRegistry(tool_root)
+    from src.scanner import save_last_scan_timestamp
+    save_last_scan_timestamp(path_registry.log_dir)
+    return results
+
+
+async def run_incremental_scan(config: Config, mode: TranslationMode = TranslationMode.FULL) -> list[tuple[Path, int]]:
+    """Run incremental scan - only files modified after last scan.
+
+    Args:
+        config: Configuration
+        mode: Translation mode to filter which Chinese lines to count
+
+    Returns:
+        List of (file_path, chinese_line_count) tuples for modified files
+    """
+    from src.paths import PathRegistry
+    from src.scanner import find_files_with_chinese_incremental
+
+    tool_root = PathRegistry.detect_tool_root()
+    path_registry = PathRegistry(tool_root)
+
+    # Get last scan timestamp for display
+    from src.scanner import load_last_scan_timestamp
+    last_timestamp = load_last_scan_timestamp(path_registry.log_dir)
+
+    results = find_files_with_chinese_incremental(
+        config.root_path,
+        config.scan_targets,
+        config.global_excludes,
+        path_registry.log_dir,
+        mode,
+    )
+
+    # Display info about incremental scan
+    if last_timestamp > 0:
+        last_time_str = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(last_timestamp))
+        console.print(f"[cyan]Last scan: {last_time_str}[/]")
+        console.print(f"[green]Found {len(results)} modified files with Chinese text[/]")
+
     return results
 
 
@@ -882,7 +930,7 @@ async def run_tui(config: Config) -> None:
     # Build title with proper Rich styling
     title_text = Text()
     title_text.append(f"{lang_info.emoji} {I18n.get('header_language')} | ", style="magenta bold")
-    title_text.append("zh-context-scanner v2.0", style="bold cyan")
+    title_text.append(f"zh-context-scanner v{__version__}", style="bold cyan")
 
     with Live(console=console, auto_refresh=True, refresh_per_second=10, screen=True) as live:
         while True:
@@ -934,7 +982,7 @@ async def run_tui(config: Config) -> None:
         # Rebuild title with new language
         title_text = Text()
         title_text.append(f"{lang_info.emoji} {I18n.get('header_language')} | ", style="magenta bold")
-        title_text.append("zh-context-scanner v2.0", style="bold cyan")
+        title_text.append(f"zh-context-scanner v{__version__}", style="bold cyan")
         await run_tui(config)
         return
 
@@ -952,7 +1000,7 @@ async def run_tui(config: Config) -> None:
         exit_text = Text()
         exit_text.append(I18n.get("exit_thank_you") + " ", style="dim")
         exit_text.append("zh-context-scanner", style="bold cyan")
-        exit_text.append(" v2.0", style="cyan")
+        exit_text.append(f" v{__version__}", style="cyan")
         exit_text.append("\n\n")
         exit_text.append("✓ ", style="green")
         exit_text.append(I18n.get("exit_changes_saved"), style="green italic")
@@ -973,8 +1021,12 @@ async def run_tui(config: Config) -> None:
         console.print(exit_panel)
         return
 
-    # Full scan or incremental scan
-    results = await run_full_scan(config, mode=translation_mode)
+    # Full scan or incremental scan (choice: 0=full, 1=incremental)
+    if choice == 0:
+        results = await run_full_scan(config, mode=translation_mode)
+    else:
+        results = await run_incremental_scan(config, mode=translation_mode)
+
     if results:
         await handle_scan_results(config, results, default_mode=translation_mode)
         await run_tui(config)

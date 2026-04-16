@@ -9,7 +9,6 @@ Last Modified: 2026-04-15
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional
 
 
 @dataclass
@@ -35,15 +34,15 @@ class LLMClientManager:
     - Azure OpenAI
     - Any other OpenAI-compatible service
     """
-    
+
     def __init__(self, config: LLMConfig) -> None:
         self.config = config
         self._client = None
-    
+
     def _get_client(self):
         """Get or create OpenAI-compatible async client."""
         from openai import AsyncOpenAI
-        
+
         if self._client is None:
             self._client = AsyncOpenAI(
                 api_key=self.config.api_key,
@@ -51,18 +50,18 @@ class LLMClientManager:
                 timeout=self.config.timeout,
             )
         return self._client
-    
+
     async def close(self) -> None:
         """Close the client."""
         if self._client:
             await self._client.close()
             self._client = None
-    
+
     @staticmethod
     def get_default_base_url() -> str:
         """Get default base URL (DeepSeek)."""
         return "https://api.deepseek.com"
-    
+
     @staticmethod
     def get_default_model() -> str:
         """Get default model name (DeepSeek)."""
