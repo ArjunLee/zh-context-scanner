@@ -7,6 +7,8 @@ Created: 2026-04-15
 
 from __future__ import annotations
 
+import os
+import sys
 from pathlib import Path
 
 
@@ -91,11 +93,11 @@ class PathRegistry:
         """
         cwd = Path.cwd()
         target = Path("tools") / "zh-context-scanner"
-        
+
         # Check if CWD is already the tool root
         if (cwd / "src").exists() and (cwd / "pyproject.toml").exists():
             return cwd
-        
+
         # Traverse up to find the tool root
         current = cwd
         for _ in range(6):
@@ -104,10 +106,51 @@ class PathRegistry:
             if current.parent == current:
                 break
             current = current.parent
-        
+
         # Fallback: check if we're inside the tool directory
         if "zh-context-scanner" in cwd.parts:
             idx = cwd.parts.index("zh-context-scanner")
             return Path(*cwd.parts[:idx + 1])
-        
+
         return cwd / target
+
+
+def get_user_config_dir() -> Path:
+    """Get user config directory for storing project configs.
+
+    Cross-platform:
+        Windows: %APPDATA%/zh-context-scanner/config/
+        macOS: ~/Library/Application Support/zh-context-scanner/config/
+        Linux: ~/.config/zh-context-scanner/config/
+    """
+    if os.name == "nt":
+        base = Path(os.environ.get("APPDATA", Path.home()))
+    elif sys.platform == "darwin":
+        base = Path.home() / "Library" / "Application Support"
+    else:
+        base = Path.home() / ".config"
+
+    return base / "zh-context-scanner" / "config"
+
+
+def get_config_save_path(project_name: str, path_registry: PathRegistry) -> Path:
+    """Get config save path, prefer user directory with tool directory fallback.
+
+    Args:
+        project_name: Project name for file naming
+        path_registry: Path registry for tool directory fallback
+
+    Returns:
+        Path where config file should be saved
+    """
+    user_dir = get_user_config_dir()
+
+    try:
+        user_dir.mkdir(parents=True, exist_ok=True)
+        return user_dir / f"{project_name}_Config.yaml"
+    except PermissionError:
+        pass
+
+    tool_dir = path_registry.config_dir
+    tool_dir.mkdir(parents=True, exist_ok=True)
+    return tool_dir / f"{project_name}_Config.yaml"
