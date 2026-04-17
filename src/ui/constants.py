@@ -55,6 +55,7 @@ ICON_MODE_FULL = "📝"
 ICON_SETTINGS = "🔧"
 ICON_CHECK = "✓"
 ICON_ARROW = "→"
+ICON_RESET = "🔄"
 
 # Setup wizard icons
 ICON_QUICK = "🌠"

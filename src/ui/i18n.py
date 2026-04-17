@@ -540,6 +540,18 @@ class I18n:
             "en": "The large model is translating the document (Python is supervising with a whip in hand)...",
             "zh": "大模型正在翻译文件(Python正手持鞭子监工中)...",
         },
+        "whole_file_wait_hint": {
+            "en": "Please wait a moment, do not close the terminal...",
+            "zh": "稍候片刻，请勿关闭终端...",
+        },
+        "single_file_translation_mode": {
+            "en": "Single-File Translation Mode",
+            "zh": "单文件翻译模式",
+        },
+        "translating_file_label": {
+            "en": "Translating:",
+            "zh": "正在翻译:",
+        },
         "whole_file_preview_title": {
             "en": "Whole-File Translation Preview",
             "zh": "整体文件翻译预览",
@@ -814,6 +826,38 @@ class I18n:
         "preferences_footer_hint": {
             "en": "↑／↓ Select | Enter Change | Backspace Return | q Quit",
             "zh": "↑／↓ 选择 | Enter 切换 | Backspace 返回 | q 退出",
+        },
+        "preferences_project": {
+            "en": "Current Project",
+            "zh": "当前项目",
+        },
+        "preferences_init_project": {
+            "en": "Initialize Project",
+            "zh": "项目初始化",
+        },
+        "preferences_no_project": {
+            "en": "(Not configured)",
+            "zh": "(未配置)",
+        },
+        "init_confirm_title": {
+            "en": "Confirm Project Initialization",
+            "zh": "确认项目初始化",
+        },
+        "init_confirm_message": {
+            "en": "This will delete the existing config and reset preferences",
+            "zh": "将删除现有配置文件并重置偏好设置",
+        },
+        "init_confirm_action": {
+            "en": "Confirm Initialize",
+            "zh": "确认初始化",
+        },
+        "init_cancel_action": {
+            "en": "Cancel",
+            "zh": "取消",
+        },
+        "init_confirm_file": {
+            "en": "Config file:",
+            "zh": "配置文件:",
         },
         # === Exit Screen ===
         "exit_thank_you": {
