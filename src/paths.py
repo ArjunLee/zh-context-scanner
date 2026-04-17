@@ -7,8 +7,6 @@ Created: 2026-04-15
 
 from __future__ import annotations
 
-import os
-import sys
 from pathlib import Path
 
 
@@ -75,14 +73,18 @@ class PathRegistry:
 
     @property
     def preferences_file(self) -> Path:
-        """User preferences file in user config directory.
+        """User preferences file: config/preferences.json"""
+        return self.config_dir / "preferences.json"
 
-        Cross-platform (same as project configs):
-            Windows: %APPDATA%/zh-context-scanner/config/preferences.json
-            macOS: ~/Library/Application Support/zh-context-scanner/config/preferences.json
-            Linux: ~/.config/zh-context-scanner/config/preferences.json
-        """
-        return get_user_config_dir() / "preferences.json"
+    @property
+    def project_config_file(self) -> Path:
+        """Project config file: config/Project_Config.yaml (user's actual config)"""
+        return self.config_dir / "Project_Config.yaml"
+
+    @property
+    def example_project_config(self) -> Path:
+        """Example project config: config/example.Project_Config.yaml (template)"""
+        return self.config_dir / "example.Project_Config.yaml"
 
     def ensure_directories(self) -> None:
         """Ensure all required directories exist."""
@@ -121,42 +123,15 @@ class PathRegistry:
         return cwd / target
 
 
-def get_user_config_dir() -> Path:
-    """Get user config directory for storing project configs.
-
-    Cross-platform:
-        Windows: %APPDATA%/zh-context-scanner/config/
-        macOS: ~/Library/Application Support/zh-context-scanner/config/
-        Linux: ~/.config/zh-context-scanner/config/
-    """
-    if os.name == "nt":
-        base = Path(os.environ.get("APPDATA", Path.home()))
-    elif sys.platform == "darwin":
-        base = Path.home() / "Library" / "Application Support"
-    else:
-        base = Path.home() / ".config"
-
-    return base / "zh-context-scanner" / "config"
-
-
-def get_config_save_path(project_name: str, path_registry: PathRegistry) -> Path:
-    """Get config save path, prefer user directory with tool directory fallback.
+def get_config_save_path(path_registry: PathRegistry) -> Path:
+    """Get config save path: config/Project_Config.yaml
 
     Args:
-        project_name: Project name for file naming
-        path_registry: Path registry for tool directory fallback
+        path_registry: Path registry for determining save location
 
     Returns:
         Path where config file should be saved
     """
-    user_dir = get_user_config_dir()
-
-    try:
-        user_dir.mkdir(parents=True, exist_ok=True)
-        return user_dir / f"{project_name}_Config.yaml"
-    except PermissionError:
-        pass
-
-    tool_dir = path_registry.config_dir
-    tool_dir.mkdir(parents=True, exist_ok=True)
-    return tool_dir / f"{project_name}_Config.yaml"
+    config_dir = path_registry.config_dir
+    config_dir.mkdir(parents=True, exist_ok=True)
+    return config_dir / "Project_Config.yaml"
