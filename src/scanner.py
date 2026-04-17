@@ -4,7 +4,7 @@ Description: Chinese text detection for whole-file translation (flat config stru
 Author: Arjun Li
 Created: 2026-04-15
 Last Modified: 2026-04-17
-Related modules: config.py, models.py
+Related modules: config.py, models.py, comment_patterns.py
 """
 
 from __future__ import annotations
@@ -17,6 +17,7 @@ from pathlib import Path
 
 import regex
 
+from src.comment_patterns import is_comment_line as is_comment_line_universal
 from src.models import TranslationMode
 
 LAST_SCAN_TIMESTAMP_FILE = "last_scan_timestamp.json"
@@ -26,20 +27,6 @@ ZH_PATTERN = regex.compile(
     r'[\u4e00-\u9fff\u3400-\u4dbf\U00020000-\U0002a6df]+'
 )
 
-COMMENT_PATTERNS = {
-    ".rs": [r"^\s*///.*", r"^\s*//.*"],
-    ".py": [r"^\s*#.*"],
-    ".ts": [r"^\s*//.*", r"^\s*/\*.*\*/.*"],
-    ".tsx": [r"^\s*//.*", r"^\s*/\*.*\*/.*"],
-    ".js": [r"^\s*//.*", r"^\s*/\*.*\*/.*"],
-    ".jsx": [r"^\s*//.*", r"^\s*/\*.*\*/.*"],
-    ".go": [r"^\s*//.*", r"^\s*/\*.*\*/.*"],
-    ".java": [r"^\s*//.*", r"^\s*/\*.*\*/.*"],
-    ".c": [r"^\s*//.*", r"^\s*/\*.*\*/.*"],
-    ".cpp": [r"^\s*//.*", r"^\s*/\*.*\*/.*"],
-    ".h": [r"^\s*//.*", r"^\s*/\*.*\*/.*"],
-}
-
 
 def contains_chinese(text: str) -> bool:
     """Check if text contains Chinese characters."""
@@ -48,11 +35,7 @@ def contains_chinese(text: str) -> bool:
 
 def is_comment_line(line: str, file_ext: str) -> bool:
     """Check if a line is a comment line based on file extension."""
-    patterns = COMMENT_PATTERNS.get(file_ext, [])
-    for pattern in patterns:
-        if regex.match(pattern, line):
-            return True
-    return False
+    return is_comment_line_universal(line, file_ext)
 
 
 def file_contains_chinese(file_path: Path) -> bool:

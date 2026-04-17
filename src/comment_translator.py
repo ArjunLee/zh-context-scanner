@@ -3,8 +3,8 @@ File: comment_translator.py
 Description: Incremental comment translation (extract -> translate -> replace)
 Author: Arjun Li
 Created: 2026-04-15
-Last Modified: 2026-04-15
-Related modules: models.py, whole_file_translator.py
+Last Modified: 2026-04-17
+Related modules: models.py, whole_file_translator.py, comment_patterns.py, prompts/
 """
 
 from __future__ import annotations
@@ -16,54 +16,21 @@ from pathlib import Path
 
 from openai import APIError, AsyncOpenAI
 
+from src.comment_patterns import CommentType, extract_all_comments
 from src.llm_client import LLMClientManager, LLMConfig
 from src.models import replace_file_header_keys_in_line
+from src.prompts import build_prompt_with_terminology
 from src.solid_logger import get_logger
-
-# Comment patterns for different languages
-COMMENT_PATTERNS = {
-    "rust": [
-        r"^\s*///.*",  # Doc comment
-        r"^\s*//.*",   # Single-line comment
-    ],
-    "python": [
-        r"^\s*#.*",    # Single-line comment
-    ],
-    "default": [
-        r"^\s*//.*",
-        r"^\s*#.*",
-        r"^\s*///.*",
-    ],
-}
-
-# Chinese character detection pattern
-CHINESE_PATTERN = re.compile(r"[\u4e00-\u9fff]+")
-
-# Translation prompt template
-COMMENT_TRANSLATION_PROMPT = """Translate the Chinese text in the following code comment to English.
-
-RULES:
-1. Output ONLY the translated comment line, no explanations
-2. Keep the comment prefix (//, #, ///) exactly as-is
-3. Preserve the original indentation
-4. Technical terms stay in English (API, TOML, Steam, JSON, etc.)
-5. Keep the comment concise and developer-friendly
-
-ORIGINAL COMMENT (line {line_no}):
-{original_comment}
-
-CONTEXT (surrounding lines):
-{context}
-
-TRANSLATED COMMENT:"""
 
 
 @dataclass
-class CommentMatch:
-    """A single comment containing Chinese text."""
+class CommentTranslationMatch:
+    """A single comment match for translation."""
     line_no: int
     original_text: str
     language: str
+    comment_type: CommentType
+    comment_content: str
 
 
 @dataclass
@@ -79,14 +46,14 @@ class CommentTranslation:
 class CommentTranslator:
     """Incremental comment translation: extract, translate, replace."""
 
-    MAX_TOKENS = 500  # Max output tokens for comment translation
+    MAX_TOKENS = 500
 
     def __init__(
         self,
         api_key: str,
         model: str = "deepseek-chat",
         base_url: str = "https://api.deepseek.com",
-        max_concurrent: int = 15,  # Increased from 5 to 15 for better throughput
+        max_concurrent: int = 15,
     ) -> None:
         self.api_key = api_key
         self.model = model
@@ -96,7 +63,6 @@ class CommentTranslator:
         self._semaphore: asyncio.Semaphore | None = None
 
     def _get_llm_client(self) -> LLMClientManager:
-        """Get or create LLM client manager."""
         if self._llm_client is None:
             config = LLMConfig(
                 api_key=self.api_key,
@@ -108,7 +74,6 @@ class CommentTranslator:
         return self._llm_client
 
     def _get_client(self) -> AsyncOpenAI:
-        """Get OpenAI client (backward compatibility)."""
         return self._get_llm_client()._get_client()
 
     def _get_semaphore(self) -> asyncio.Semaphore:
@@ -122,7 +87,6 @@ class CommentTranslator:
             self._llm_client = None
 
     def detect_language(self, file_path: Path) -> str:
-        """Detect language from file extension."""
         ext = file_path.suffix.lower()
         lang_map = {
             ".rs": "rust",
@@ -142,23 +106,20 @@ class CommentTranslator:
     def extract_comments_with_chinese(
         self,
         file_path: Path,
-    ) -> list[CommentMatch]:
-        """Extract all comments containing Chinese text."""
+    ) -> list[CommentTranslationMatch]:
+        """Extract all comments using universal patterns."""
+        raw_matches = extract_all_comments(file_path)
         language = self.detect_language(file_path)
-        patterns = COMMENT_PATTERNS.get(language, COMMENT_PATTERNS["default"])
-        combined_pattern = re.compile("|".join(patterns))
-
-        content = file_path.read_text(encoding="utf-8", errors="replace")
-        lines = content.splitlines(keepends=True)
 
         matches = []
-        for i, line in enumerate(lines, start=1):
-            if combined_pattern.match(line) and CHINESE_PATTERN.search(line):
-                matches.append(CommentMatch(
-                    line_no=i,
-                    original_text=line.rstrip("\n\r"),
-                    language=language,
-                ))
+        for m in raw_matches:
+            matches.append(CommentTranslationMatch(
+                line_no=m.line_no,
+                original_text=m.original_text,
+                language=language,
+                comment_type=m.comment_type,
+                comment_content=m.comment_content,
+            ))
 
         return matches
 
@@ -168,7 +129,6 @@ class CommentTranslator:
         line_no: int,
         context_size: int = 3,
     ) -> str:
-        """Get surrounding lines for context."""
         content = file_path.read_text(encoding="utf-8", errors="replace")
         lines = content.splitlines()
 
@@ -184,28 +144,24 @@ class CommentTranslator:
 
     async def translate_single_comment(
         self,
-        comment: CommentMatch,
+        comment: CommentTranslationMatch,
         file_path: Path,
     ) -> CommentTranslation:
-        """Translate a single comment with context."""
         logger = get_logger()
 
-        # Priority: replace header key with cached translation
         replaced_text = replace_file_header_keys_in_line(comment.original_text)
-        if replaced_text != comment.original_text:
-            # Key replaced, value still needs LLM translation
-            comment_to_translate = CommentMatch(
-                line_no=comment.line_no,
-                original_text=replaced_text,
-                language=comment.language,
-            )
-        else:
-            comment_to_translate = comment
+        comment_to_translate = CommentTranslationMatch(
+            line_no=comment.line_no,
+            original_text=replaced_text,
+            language=comment.language,
+            comment_type=comment.comment_type,
+            comment_content=comment.comment_content,
+        ) if replaced_text != comment.original_text else comment
 
-        # Call API
         context = self.get_context_lines(file_path, comment_to_translate.line_no)
 
-        prompt = COMMENT_TRANSLATION_PROMPT.format(
+        prompt = build_prompt_with_terminology(
+            prompt_type="comment",
             line_no=comment_to_translate.line_no,
             original_comment=comment_to_translate.original_text,
             context=context,
@@ -230,16 +186,17 @@ class CommentTranslator:
                 duration_ms = (time.perf_counter() - start_time) * 1000
 
                 msg = response.choices[0].message
-                translated = msg.content or ""
-                translated = translated.strip()
+                translated = (msg.content or "").strip()
 
-                # Clean: remove any duplicate comment prefixes LLM might have added
-                original_prefix = self._extract_comment_prefix(comment.original_text)
-                translated = self._clean_comment_prefix(translated, original_prefix)
-
-                # Ensure correct prefix with original indentation
-                original_indent = self._extract_indent(comment.original_text)
-                translated = original_indent + original_prefix + " " + translated
+                if comment.comment_type == CommentType.TRAILING_COMMENT:
+                    translated = self._reconstruct_trailing_comment(
+                        comment.original_text, translated
+                    )
+                else:
+                    original_prefix = self._extract_comment_prefix(comment.original_text)
+                    translated = self._clean_comment_prefix(translated, original_prefix)
+                    original_indent = self._extract_indent(comment.original_text)
+                    translated = original_indent + original_prefix + " " + translated
 
                 logger.log_from_api_response(
                     original_text=comment.original_text,
@@ -276,33 +233,27 @@ class CommentTranslator:
                 )
 
     def _extract_comment_prefix(self, line: str) -> str:
-        """Extract the comment prefix (//, #, ///) without indentation."""
-        # Skip leading whitespace, then capture prefix
-        match = re.match(r"^\s*(///|//|#)", line)
+        match = re.match(r"^\s*(///|//|#|\*)", line)
         if match:
-            return match.group(1)  # Prefix only, excluding indent
+            return match.group(1)
         return ""
 
     def _extract_indent(self, line: str) -> str:
-        """Extract the indentation (leading whitespace) from a line."""
         match = re.match(r"^(\s+)", line)
         if match:
             return match.group(0)
         return ""
 
     def _clean_comment_prefix(self, translated: str, original_prefix: str) -> str:
-        """Remove any comment prefixes LLM might have added, return clean content."""
-        # Remove leading whitespace
         content = translated.strip()
 
-        # Remove any comment prefixes that might be present
-        # Common patterns: ///, //, #, possibly duplicated
         prefix_patterns = [
-            r"^///\s*",      # Rust doc comment
-            r"^//\s*",       # Single-line comment
-            r"^#\s*",        # Python comment
-            r"^///\s*///\s*",  # Double doc comment (LLM mistake)
-            r"^//\s*//\s*",    # Double comment (LLM mistake)
+            r"^///\s*",
+            r"^//\s*",
+            r"^#\s*",
+            r"^\*\s*",
+            r"^///\s*///\s*",
+            r"^//\s*//\s*",
         ]
 
         for pattern in prefix_patterns:
@@ -310,12 +261,41 @@ class CommentTranslator:
 
         return content.strip()
 
+    def _reconstruct_trailing_comment(self, original: str, translated: str) -> str:
+        """Reconstruct trailing comment: preserve code part, replace comment only.
+
+        For lines like: `  | 'noCover'             // 无封面图标`
+        We need to preserve `  | 'noCover'             ` and only replace `无封面图标`.
+        """
+        translated = translated.strip()
+
+        pos = original.find("//")
+        if pos == -1:
+            return translated
+
+        code_part = original[:pos]
+        delimiter = "//"
+
+        # Handle LLM returning full line vs just comment
+        # Find // in translated output to extract comment content
+        trans_comment_pos = translated.find("//")
+        if trans_comment_pos != -1:
+            # LLM returned full line, extract comment part after //
+            comment_content = translated[trans_comment_pos + 2:].strip()
+        elif translated.startswith("//"):
+            # LLM returned // prefix + comment
+            comment_content = translated[2:].strip()
+        else:
+            # LLM returned just the comment text
+            comment_content = translated
+
+        return code_part + delimiter + " " + comment_content
+
     async def translate_comments_batch(
         self,
-        comments: list[CommentMatch],
+        comments: list[CommentTranslationMatch],
         file_path: Path,
     ) -> list[CommentTranslation]:
-        """Translate multiple comments concurrently."""
         tasks = [
             self.translate_single_comment(comment, file_path)
             for comment in comments
@@ -330,10 +310,8 @@ class CommentTranslator:
         backup_dir: Path | None = None,
         relative_root: Path | None = None,
     ) -> bool:
-        """Apply comment replacements to the file."""
         logger = get_logger()
 
-        # Filter successful translations only
         successful = [t for t in translations if t.success]
         if not successful:
             logger.warning("No successful translations to apply")
@@ -342,7 +320,6 @@ class CommentTranslator:
         content = file_path.read_text(encoding="utf-8", errors="replace")
         lines = content.splitlines(keepends=True)
 
-        # Backup before modification
         if backup_dir and relative_root:
             from datetime import datetime
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -352,18 +329,14 @@ class CommentTranslator:
             backup_path.write_text(content, encoding="utf-8")
             logger.info(f"Backup saved: {backup_path}")
 
-        # Apply replacements
         for translation in successful:
             idx = translation.line_no - 1
             if idx < len(lines):
                 line_ending = "\n" if lines[idx].endswith("\n") else ""
                 lines[idx] = translation.translated_text + line_ending
 
-        # Write back
         file_path.write_text("".join(lines), encoding="utf-8")
-        logger.info(
-            f"Applied {len(successful)} comment translations to {file_path.name}"
-        )
+        logger.info(f"Applied {len(successful)} comment translations to {file_path.name}")
         return True
 
 
@@ -371,12 +344,7 @@ async def translate_file_comments(
     file_path: Path,
     api_key: str,
     model: str = "deepseek-chat",
-) -> tuple[list[CommentMatch], list[CommentTranslation]]:
-    """High-level function: extract and translate comments from a file.
-
-    Returns:
-        Tuple of (extracted comments, translation results)
-    """
+) -> tuple[list[CommentTranslationMatch], list[CommentTranslation]]:
     translator = CommentTranslator(api_key=api_key, model=model)
 
     comments = translator.extract_comments_with_chinese(file_path)

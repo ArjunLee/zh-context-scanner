@@ -3,8 +3,8 @@ File: whole_file_translator.py
 Description: Whole-file translation engine using OpenAI SDK for DeepSeek API
 Author: Arjun Li
 Created: 2026-04-15
-Last Modified: 2026-04-15
-Related modules: models.py, backup_manager.py
+Last Modified: 2026-04-17
+Related modules: models.py, backup_manager.py, prompts/
 """
 
 from __future__ import annotations
@@ -20,10 +20,9 @@ from src.llm_client import LLMClientManager, LLMConfig
 from src.models import (
     FileTranslationResult,
     TranslationMode,
-    get_file_header_translations,
-    get_technical_terms,
     replace_file_header_keys_in_content,
 )
+from src.prompts import build_prompt_with_terminology
 from src.solid_logger import get_logger
 
 MAX_TOKENS = 32000  # Approximate token limit for safety
@@ -35,74 +34,6 @@ MAX_CONCURRENT = 3  # Max concurrent API calls
 # deepseek-reasoner: DEFAULT 32K, MAXIMUM 64K
 DEEPSEEK_CHAT_MAX_OUTPUT = 8192
 DEEPSEEK_REASONER_MAX_OUTPUT = 64000
-
-
-def _build_technical_terms_section() -> str:
-    """Build technical terms section for prompt from YAML config."""
-    terms = get_technical_terms()
-    if not terms:
-        return "   - (No special technical terms defined)"
-    # Format as bullet list
-    return "\n".join(f"   - {term}" for term in terms)
-
-
-def _build_file_header_terms_section() -> str:
-    """Build file header translations section for prompt."""
-    translations = get_file_header_translations()
-    if not translations:
-        return "   - (No file header terms defined)"
-    # Format as: "文件名 → File name"
-    return "\n".join(f"   - {zh} → {en}" for zh, en in translations.items())
-
-
-WHOLE_FILE_PROMPT_TEMPLATE = """You are a professional code translator. Translate Chinese text to English in the provided source code file.
-
-TRANSLATION MODE: {mode}
-- comment_only: Only translate Chinese in comments (lines starting with //, #, /*, *, <!--, or ending with */)
-- full: Translate ALL Chinese text including comments, log strings, string literals, UI text
-
-CRITICAL RULES - YOU MUST FOLLOW ALL OF THESE:
-
-1. **COMPLETE OUTPUT REQUIRED**:
-   - Output the ENTIRE translated file, line by line
-   - DO NOT truncate, skip, or omit any part of the file
-   - The output MUST have approximately the same line count as input
-   - If you cannot complete due to length limits, STOP and report "INCOMPLETE" at the end
-
-2. OUTPUT FORMAT:
-   - Output ONLY the translated code
-   - No explanations, no markdown blocks, no preamble
-   - Start directly with line 1 of the translated file
-
-3. PRESERVE STRUCTURE:
-   - Keep the same line count for easier review
-   - Indentation must be preserved exactly (spaces, tabs)
-   - Blank lines must stay blank
-   - Special characters must be preserved (brackets, quotes, escapes)
-
-4. DO NOT change:
-   - Variable names, function names, class names
-   - Import statements, package declarations
-   - Code logic, structure, syntax
-   - Test code (#[cfg(test)] blocks must be preserved completely)
-
-5. Technical terms stay in English:
-{technical_terms}
-
-6. Translation style:
-   - Comments: concise, developer-friendly English
-   - Log strings: professional, debug-appropriate English
-   - UI text: natural, user-friendly English
-
-7. FILE HEADERS (use exact translations):
-{file_header_terms}
-
-SOURCE FILE: {file_name}
-TOTAL LINES: {line_count}
-SOURCE CODE:
-{source_code}
-
-TRANSLATED CODE (output the entire file, start from line 1):"""
 
 
 def estimate_tokens(content: str) -> int:
@@ -392,13 +323,19 @@ class WholeFileTranslator:
             )
 
         original_lines = len(original_content.splitlines())
-        prompt = WHOLE_FILE_PROMPT_TEMPLATE.format(
-            mode=mode.value,
+
+        # Build mode description for prompt
+        mode_desc = "comment_only: Only translate Chinese in comments"
+        if mode == TranslationMode.FULL:
+            mode_desc = "full: Translate ALL Chinese text including comments, log strings, string literals, UI text"
+
+        prompt = build_prompt_with_terminology(
+            prompt_type="whole_file",
+            file_type=file_path.suffix.lstrip(".") or "code",
+            mode_description=mode_desc,
             file_name=file_path.name,
-            line_count=original_lines,
-            source_code=content_for_translation,
-            technical_terms=_build_technical_terms_section(),
-            file_header_terms=_build_file_header_terms_section(),
+            original_code=content_for_translation,
+            additional_instructions=f"TOTAL LINES: {original_lines}",
         )
 
         logger.log_api_request(

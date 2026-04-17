@@ -3,6 +3,8 @@ File: translator.py
 Description: DeepSeek translation client with async, batch and caching support
 Author: Arjun Li
 Created: 2026-04-15
+Last Modified: 2026-04-17
+Related modules: prompts/, models.py
 """
 
 from __future__ import annotations
@@ -13,6 +15,7 @@ from dataclasses import dataclass, field
 import httpx
 
 from src.models import ScanMatch, TranslationResult
+from src.prompts import build_prompt_with_terminology
 from src.solid_logger import get_logger
 
 
@@ -36,43 +39,6 @@ class TranslationCache:
 
 # Global cache instance
 TRANSLATION_CACHE = TranslationCache()
-
-
-TRANSLATION_PROMPT_TEMPLATE = """You are a code translator. Translate Chinese to English.
-
-RULES:
-1. Output ONLY the translated text, no explanation.
-2. Preserve original formatting (indentation, line breaks, spaces).
-3. Do NOT modify any non-Chinese content.
-4. Keep technical terms in English if they are standard (e.g., "API", "TOML", "Tauri").
-5. For comments: use concise, professional English.
-6. For strings: translate naturally, fit for UI/logs.
-
-Original line:
-{line_content}
-
-Chinese text to translate:
-{chinese_text}
-
-Translated text:"""
-
-
-BATCH_TRANSLATION_PROMPT_TEMPLATE = """You are a code translator. Translate Chinese text to English.
-
-RULES:
-1. Output a JSON object mapping each Chinese text to its English translation.
-2. Output ONLY the JSON, no other text.
-3. Preserve original formatting where applicable.
-4. Keep technical terms in English (e.g., "API", "TOML", "Tauri").
-5. Use concise, professional English for comments.
-
-Input texts (JSON array):
-{texts_json}
-
-Output format:
-{{"原文1": "译文1", "原文2": "译文2", ...}}
-
-JSON output:"""
 
 
 class Translator:
@@ -113,7 +79,8 @@ class Translator:
         if cached:
             return TranslationResult(original=chinese_text, translated=cached, cached=True)
 
-        prompt = TRANSLATION_PROMPT_TEMPLATE.format(
+        prompt = build_prompt_with_terminology(
+            prompt_type="single",
             line_content=line_content,
             chinese_text=chinese_text,
         )
@@ -145,7 +112,7 @@ class Translator:
         """Translate multiple texts in a single API call."""
         logger = get_logger()
         texts_json = json.dumps(texts, ensure_ascii=False)
-        prompt = BATCH_TRANSLATION_PROMPT_TEMPLATE.format(texts_json=texts_json)
+        prompt = build_prompt_with_terminology(prompt_type="batch", texts_json=texts_json)
 
         logger.log_api_request(
             base_url=self.api_url.replace("/chat/completions", ""),

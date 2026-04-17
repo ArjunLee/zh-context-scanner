@@ -45,6 +45,16 @@ def get_technical_terms() -> list[str]:
     return _load_terminology().get("technical_terms", [])
 
 
+# Regex to match standard file header comment format
+# Supports multiple formats:
+# 1. "// 文件名：xxx" - Standard single-line comment
+# 2. " * 文件名：xxx" - Block comment with * prefix
+# 3. "文件名：xxx" - Block comment without prefix (pure line inside /* */)
+FILE_HEADER_PATTERN: re.Pattern = re.compile(
+    r"^(\s*//\s*|\s*\*\s*|\s*)(文件名|功能描述|作者|创建日期|最后修改日期|关联模块)([：:]\s*)(.*)$"
+)
+
+
 def replace_file_header_keys_in_line(line: str) -> str:
     """Replace file header key in a single line with cached translation.
 
@@ -86,12 +96,6 @@ def replace_file_header_keys_in_content(content: str) -> str:
     lines = content.splitlines(keepends=True)
     replaced_lines = [replace_file_header_keys_in_line(line) for line in lines]
     return "".join(replaced_lines)
-
-
-# Regex to match standard file header comment format
-FILE_HEADER_PATTERN: re.Pattern = re.compile(
-    r"^(\s*//\s*)(文件名|功能描述|作者|创建日期|最后修改日期|关联模块)([：:]\s*)(.*)$"
-)
 
 
 class TranslationMode(Enum):
