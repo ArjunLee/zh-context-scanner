@@ -20,8 +20,8 @@ from rich.panel import Panel
 from rich.text import Text
 from rich.theme import Theme
 
-from src.config import Config, ScanTarget
-from src.config_generator import create_scan_target, sanitize_project_name, save_config_file
+from src.config import Config
+from src.config_generator import resolve_path, sanitize_project_name, save_config_file
 from src.paths import PathRegistry
 from src.preference import PreferenceManager
 from src.ui.constants import (
@@ -153,14 +153,9 @@ def _render_setup_menu_panel(selected: int) -> Panel:
 
 
 def _handle_quick_setup() -> Config | str | None:
-    """Handle quick setup flow with proper ESC navigation.
+    """Handle quick setup flow with proper ESC navigation."""
+    paths: list[str] = []
 
-    Returns:
-        Config on success, SIGNAL_BACK to return to main menu, None on error.
-    """
-    scan_targets: list[ScanTarget] = []
-
-    # Step 1: Tech stack selection (one-time)
     preset_keys = _show_tech_stack_selection()
     if preset_keys is None:
         return SIGNAL_BACK
@@ -172,14 +167,12 @@ def _handle_quick_setup() -> Config | str | None:
     extensions, excludes = merge_presets(preset_keys)
     presets_info = _get_presets_display_info(preset_keys)
 
-    # Step 2: Scan targets input (multi-add in single panel)
-    result = _show_scan_targets_panel(presets_info, extensions, excludes, scan_targets)
+    result = _show_paths_panel(presets_info, paths)
     if result == SIGNAL_BACK:
         return SIGNAL_BACK
     elif result is None:
         return SIGNAL_BACK
 
-    # Step 3: Project name
     project_name = _show_project_name_input()
     if project_name is None:
         return SIGNAL_BACK
@@ -196,7 +189,9 @@ def _handle_quick_setup() -> Config | str | None:
     path_registry = PathRegistry(tool_root)
     global_excludes = get_default_global_excludes()
 
-    config_path = save_config_file(sanitized_name, scan_targets, global_excludes, path_registry)
+    config_path = save_config_file(
+        sanitized_name, paths, extensions, excludes, global_excludes, path_registry
+    )
 
     pref_manager = PreferenceManager()
     pref_manager.update_config_file(str(config_path))
@@ -211,7 +206,8 @@ def _handle_quick_setup() -> Config | str | None:
         root_path=Path.cwd(),
         backup_dir=path_registry.backup_dir,
         project_name=sanitized_name,
-        scan_targets=scan_targets,
+        extensions=extensions,
+        exclude_subdirs=excludes,
         global_excludes=global_excludes,
     )
 
@@ -229,57 +225,47 @@ def _get_presets_display_info(preset_keys: list[str]) -> str:
     return ", ".join(parts)
 
 
-def _show_scan_targets_panel(
+def _show_paths_panel(
     presets_info: str,
-    extensions: list[str],
-    excludes: list[str],
-    scan_targets: list[ScanTarget],
+    paths: list[str],
 ) -> str | None:
-    """Show scan targets input panel with multi-add support.
-
-    Supports hybrid mode:
-    - Input mode: Type paths, Enter to add, Backspace to delete input
-    - Select mode (Tab to switch): Up/Down to select, Delete to remove target
-
-    Returns:
-        "done" when user confirms targets, SIGNAL_BACK on ESC, None on error.
-    """
+    """Show paths input panel with multi-add support."""
     buffer = ""
     feedback_msg = ""
     feedback_style = ""
     select_mode = False
-    selected_target_idx = 0
+    selected_idx = 0
 
     with Live(console=console, auto_refresh=True, refresh_per_second=10, screen=True) as live:
         while True:
-            panel = _render_scan_targets_panel(
-                presets_info, scan_targets, buffer, feedback_msg, feedback_style,
-                select_mode, selected_target_idx
+            panel = _render_paths_panel(
+                presets_info, paths, buffer, feedback_msg, feedback_style,
+                select_mode, selected_idx
             )
             live.update(panel)
 
             key = read_key()
 
             if select_mode:
-                if key == KEY_UP and scan_targets:
-                    selected_target_idx = (selected_target_idx - 1) % len(scan_targets)
-                elif key == KEY_DOWN and scan_targets:
-                    selected_target_idx = (selected_target_idx + 1) % len(scan_targets)
+                if key == KEY_UP and paths:
+                    selected_idx = (selected_idx - 1) % len(paths)
+                elif key == KEY_DOWN and paths:
+                    selected_idx = (selected_idx + 1) % len(paths)
                 elif key == KEY_BACK:
                     select_mode = False
                     feedback_msg = ""
                 elif key == KEY_ESC:
                     return SIGNAL_BACK
                 elif key.lower() == "d":
-                    if scan_targets:
-                        removed = scan_targets.pop(selected_target_idx)
-                        if selected_target_idx >= len(scan_targets) and scan_targets:
-                            selected_target_idx = len(scan_targets) - 1
-                        feedback_msg = f"{I18n.get('path_removed')} {removed.path}"
+                    if paths:
+                        removed = paths.pop(selected_idx)
+                        if selected_idx >= len(paths) and paths:
+                            selected_idx = len(paths) - 1
+                        feedback_msg = f"{I18n.get('path_removed')} {removed}"
                         feedback_style = "yellow"
-                        if not scan_targets:
+                        if not paths:
                             select_mode = False
-                            selected_target_idx = 0
+                            selected_idx = 0
                 elif key == KEY_TAB:
                     select_mode = False
                     feedback_msg = ""
@@ -292,7 +278,7 @@ def _show_scan_targets_panel(
                     return SIGNAL_BACK
                 elif key == KEY_ENTER:
                     if not buffer.strip():
-                        if scan_targets:
+                        if paths:
                             return "done"
                         feedback_msg = I18n.get("path_min_one_warning")
                         feedback_style = "yellow"
@@ -303,15 +289,14 @@ def _show_scan_targets_panel(
                             feedback_msg = I18n.format("path_not_found_warning", path_str)
                             feedback_style = "red"
                         else:
-                            resolved_path = path_obj.resolve().as_posix()
-                            target = create_scan_target(resolved_path, extensions, excludes)
-                            scan_targets.append(target)
+                            resolved_path = resolve_path(path_str)
+                            paths.append(resolved_path)
                             buffer = ""
                             feedback_msg = f"{I18n.get('path_scan_target_added')} {resolved_path}"
                             feedback_style = "green"
-                elif key == KEY_TAB and scan_targets:
+                elif key == KEY_TAB and paths:
                     select_mode = True
-                    selected_target_idx = 0
+                    selected_idx = 0
                     feedback_msg = I18n.get("path_select_mode_hint")
                     feedback_style = "cyan"
                 elif len(key) == 1 and key.isprintable():
@@ -322,35 +307,32 @@ def _show_scan_targets_panel(
 
 
 def _truncate_path_suffix(path: str, max_len: int = 55) -> str:
-    """Truncate path from prefix, preserving suffix (project name).
-
-    Example: E:/Dev/.../VaultSave/apps/desktop/ui
-    """
+    """Truncate path from prefix, preserving suffix."""
     if len(path) <= max_len:
         return path
     return "..." + path[-(max_len - 3):]
 
 
-def _render_scan_targets_panel(
+def _render_paths_panel(
     presets_info: str,
-    scan_targets: list[ScanTarget],
+    paths: list[str],
     buffer: str,
     feedback_msg: str,
     feedback_style: str,
     select_mode: bool,
-    selected_target_idx: int,
+    selected_idx: int,
 ) -> Panel:
-    """Render scan targets multi-add panel with hybrid mode."""
-    targets_list = Text()
-    if scan_targets:
-        for idx, target in enumerate(scan_targets, 1):
-            display_path = _truncate_path_suffix(target.path, 55)
-            if select_mode and idx - 1 == selected_target_idx:
-                targets_list.append(f"  {idx}. {display_path}\n", style="red bold")
+    """Render paths input panel."""
+    paths_list = Text()
+    if paths:
+        for idx, path in enumerate(paths, 1):
+            display_path = _truncate_path_suffix(path, 55)
+            if select_mode and idx - 1 == selected_idx:
+                paths_list.append(f"  {idx}. {display_path}\n", style="red bold")
             else:
-                targets_list.append(f"  {idx}. {display_path}\n", style="cyan")
+                paths_list.append(f"  {idx}. {display_path}\n", style="cyan")
     else:
-        targets_list.append(f"  ({I18n.get('path_pending_add')})\n", style="grey50")
+        paths_list.append(f"  ({I18n.get('path_pending_add')})\n", style="grey50")
 
     if buffer:
         input_text = Text(buffer, style="cyan")
@@ -362,10 +344,7 @@ def _render_scan_targets_panel(
     if feedback_msg:
         feedback_text.append(f"\n{feedback_msg}\n", style=feedback_style)
 
-    if select_mode:
-        footer_hint = I18n.get("path_select_footer_hint")
-    else:
-        footer_hint = I18n.get("path_add_footer_hint")
+    footer_hint = I18n.get("path_select_footer_hint") if select_mode else I18n.get("path_add_footer_hint")
 
     content = Group(
         Text(f"{ICON_FOLDER} {I18n.get('path_add_title')}", style=STYLE_TITLE),
@@ -374,7 +353,7 @@ def _render_scan_targets_panel(
         Text(I18n.get("path_add_for_stacks"), style="muted"),
         Text(""),
         Text(I18n.get("path_added_targets"), style="cyan bold"),
-        targets_list,
+        paths_list,
         Text(""),
         Text(I18n.get("path_input_label"), style=STYLE_MUTED),
         input_text,
@@ -700,7 +679,8 @@ def _show_completion_panel(project_name: str, config_path: Path) -> None:
 def _handle_manual_setup() -> None:
     """Handle manual setup flow."""
     tool_root = PathRegistry.detect_tool_root()
-    project_config = tool_root / "Project_Config.yaml"
+    path_registry = PathRegistry(tool_root)
+    project_config = path_registry.config_dir / "Project_Config.yaml"
 
     content = Group(
         Text(f"{ICON_MANUAL} {I18n.get('setup_manual_option')}", style=STYLE_TITLE),
