@@ -23,7 +23,7 @@ class LLMConfig:
 
 class LLMClientManager:
     """Unified LLM client manager.
-    
+
     Supports multiple providers via OpenAI-compatible API:
     - DeepSeek (default)
     - OpenAI

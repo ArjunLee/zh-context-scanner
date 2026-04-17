@@ -17,7 +17,7 @@ from rich.console import Console
 from src import __version__
 from src.backup_manager import restore_backup
 from src.config import Config, parse_args
-from src.preference import PreferenceManager
+from src.preference import PreferenceManager, ensure_default_config_exists
 from src.scanner import find_files_with_chinese
 from src.ui.i18n import I18n
 
@@ -26,10 +26,13 @@ console = Console()
 
 def run_headless_scan(config: Config) -> None:
     """Run scan in headless mode, output JSON."""
+    paths = [t.path for t in config.scan_targets]
+    excludes = config.exclude_subdirs or config.global_excludes
     results = find_files_with_chinese(
         config.root_path,
-        config.scan_targets,
-        config.global_excludes,
+        paths,
+        config.extensions,
+        excludes,
     )
     total_files = len(results)
     total_lines = sum(r[1] for r in results)
@@ -77,6 +80,9 @@ def entry() -> None:
     path_registry = PathRegistry(tool_root)
     configure_logging(version=__version__, path_registry=path_registry)
 
+    # Ensure default config exists (copy from example if missing)
+    ensure_default_config_exists(path_registry)
+
     # Initialize preference manager
     pref_manager = PreferenceManager()
 
@@ -110,24 +116,23 @@ def entry() -> None:
     try:
         asyncio.run(run_tui(config))
     except KeyboardInterrupt:
-        # Graceful exit on Ctrl+C
         from rich import box
         from rich.panel import Panel
         from rich.text import Text
 
         exit_text = Text()
-        exit_text.append("\n", end="")
+        exit_text.append("\n")
         exit_text.append("Interrupted by user", style="yellow bold")
-        exit_text.append("\n\n", end="")
+        exit_text.append("\n\n")
         exit_text.append("Thank you for using ", style="dim")
         exit_text.append("zh-context-scanner", style="bold cyan")
-        exit_text.append("\n\n", end="")
+        exit_text.append("\n\n")
         exit_text.append("[OK] ", style="green")
         exit_text.append("Session terminated safely", style="green italic")
-        exit_text.append("\n", end="")
+        exit_text.append("\n")
         exit_text.append("[OK] ", style="green")
         exit_text.append("No data loss", style="green italic")
-        exit_text.append("\n\n", end="")
+        exit_text.append("\n\n")
         exit_text.append("See you next time!", style="bold magenta")
 
         exit_panel = Panel(
