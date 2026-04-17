@@ -1,6 +1,6 @@
 [project]
 name = "zh-context-scanner"
-version = "1.0.3"
+version = "1.0.4"
 description = "A CLI/TUI tool from the VaultSave project for detecting and translating Chinese text in source code, helping open-source projects achieve internationalization standards with precision."
 requires-python = ">=3.10"
 dependencies = [

@@ -71,3 +71,4 @@ dev_docs/
 config/preferences.json
 config/Project_Config.yaml
 run_local.ps1
+__test__/
