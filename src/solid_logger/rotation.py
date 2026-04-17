@@ -101,6 +101,9 @@ class VaultSaveRotatingHandler(TimedRotatingFileHandler):
 
             self._ensure_header_written()
             stream = self.stream
+            if stream is None:
+                stream = self._open()
+                self.stream = stream
             stream.write(allowed + self.terminator)
             self.flush()
         except Exception:
@@ -119,8 +122,17 @@ class VaultSaveRotatingHandler(TimedRotatingFileHandler):
         )
 
     def doRollover(self) -> None:
-        """Handle log rotation and cleanup."""
-        super().doRollover()
+        """Handle log rotation and cleanup (Windows-safe)."""
+        try:
+            if self.stream:
+                self.stream.close()
+                self.stream = None
+            super().doRollover()
+            self.stream = self._open()
+        except PermissionError:
+            if self.stream is None:
+                self.stream = self._open()
+            return
         self._header_written_for_current_file = False
         self._guard.reset_file_block()
         cleanup_log_dir(
