@@ -1,115 +1,93 @@
 # Running Guide
 
-> 🌏 [中文版](RUNNING_zh.md) | [Back to README](README.md)
+> [中文版](RUNNING_zh.md) | [Back to README](README.md)
 
-## Recommended Launch Methods (No Warning)
+## Recommended Launch Methods
 
-### Windows CMD
+### Windows
+
+```powershell
+# PowerShell
+.\run.ps1
+
+# Or local dev script
+.\run_local.ps1
+```
+
 ```cmd
+# CMD
 run.bat
 ```
 
-### PowerShell
-```powershell
-.\run.ps1
-```
+### Manual Launch
 
-### Manual Launch (Clear Environment Variable)
-```powershell
-# PowerShell
-$env:VIRTUAL_ENV=""
-uv run python -m src.main
+```bash
+# Clear VIRTUAL_ENV to avoid uv warning
+$env:VIRTUAL_ENV=""  # PowerShell
+set VIRTUAL_ENV=     # CMD
 
-# CMD
-set VIRTUAL_ENV=
 uv run python -m src.main
 ```
 
 ## Why Clear VIRTUAL_ENV?
 
-When you're in another Python virtual environment (e.g., `your-project-backend`), the system sets the `VIRTUAL_ENV` environment variable.
-`uv` detects this variable doesn't match the current project's `.venv` and outputs a warning.
+When in another Python venv, `uv` detects mismatch and outputs warning. Launch scripts auto-clear this variable.
 
-The launch scripts automatically clear this variable to ensure the tool uses its own virtual environment.
+## First-Time Setup
 
-## Main Menu Example
+1. Create `.env.local` with your LLM API key
+2. Run `uv run python -m src.main`
+3. Setup Wizard guides you to create `config/Project_Config.yaml`
+4. Select paths, extensions, and exclude directories
+5. Start translating!
+
+## Main Menu
 
 ```
-┌─ zh-context-scanner v1.0.2 ──────────────────────────────────┐
-│                                                           │
-│  Project root: /home/user/your-project                    │
-│  Language: English                                        │
-│  Translation mode: Comment Only (Fast)                    │
-│                                                           │
-│  Select action                                            │
-│  🔍 Full Scan                                             │
-│  📊 Incremental Scan                                      │
-│  📁 Manual Path Input                                     │
-│  💾 Backup History                                        │
-│  🔧 Preferences                                           │
-│  👋 Exit                                                  │
-│                                                           │
-│  Enter number (1-6):                                      │
-└───────────────────────────────────────────────────────────┘
+┌─ zh-context-scanner v1.0.2 ────────────────────────────┐
+│ 🌏 Language: English | Mode: Comment Only              │
+│                                                        │
+│ 🔍 Full Scan                                           │
+│ 📊 Incremental Scan                                    │
+│ 📁 Manual Path Input                                   │
+│ 💾 Backup History                                      │
+│ 🔧 Preferences                                         │
+│ 👋 Exit                                                │
+│                                                        │
+│ ↑↓ Navigate | Enter Select | Q Quit                    │
+└────────────────────────────────────────────────────────┘
 ```
 
-## LLM Configuration
+## Workflow
 
-Configure in `.env.local` file:
-
-```bash
-# Required: API Key
-LLM_API_KEY=sk-your-api-key
-
-# Optional: Custom Base URL (default: DeepSeek)
-# LLM_BASE_URL=https://api.deepseek.com
-
-# Optional: Custom model (default: deepseek-chat)
-# LLM_MODEL=deepseek-chat
-
-# Optional: Force use configured model (skip auto-binding)
-# LLM_FORCE_MODEL=false
-```
-
-### Model Auto-Binding
-
-The tool automatically selects the optimal model based on translation mode (unless `LLM_FORCE_MODEL=true`):
-
-| Translation Mode | Auto-Bound Model | Description |
-|------------------|------------------|-------------|
-| Comment Only | `deepseek-chat` | Fast, low cost, 8K output limit |
-| Full Content | `deepseek-reasoner` | 64K output limit, suitable for large files |
-
-Set `LLM_FORCE_MODEL=true` to force using the model specified in `LLM_MODEL`.
-
-> Detailed configuration guide: [LLM Configuration Guide](LLM_CONFIG_GUIDE.md)
+1. **Configure**: Preferences → Language, Translation Mode
+2. **Scan**: Full/Incremental scan finds Chinese files
+3. **Preview**: Select file → Git Diff preview (← → flip pages)
+4. **Apply**: Confirm and apply translation
+5. **Backup**: Auto-created in `.backup/`, restore via Backup History
 
 ## Troubleshooting
 
-### Issue: VIRTUAL_ENV warning on startup
+### VIRTUAL_ENV warning
 
-**Solution**: Use launch scripts (`run.bat` or `.\run.ps1`), they automatically clear the environment variable.
+Use launch scripts (`run.ps1`, `run.bat`) which auto-clear the variable.
 
-### Issue: Translation failed
+### Translation failed
 
-**Solution**:
-1. Check if `.env.local` has a valid `LLM_API_KEY`
+1. Check `.env.local` has valid `LLM_API_KEY`
 2. Check network connection
-3. View log files for detailed errors
+3. Check `.log/zh-context-scanner.log` for errors
 
-### Issue: Scan results are 0
+### Scan results 0
 
-**Solution**:
-1. Check if scan target path is correct
-2. Confirm the project actually contains Chinese text
-3. Try switching translation mode (some modes don't count Chinese in code strings)
+1. Verify scan paths in `config/Project_Config.yaml`
+2. Check project actually contains Chinese
+3. Try different translation mode
 
-### Issue: Translation output truncated
+### Output truncated
 
-**Solution**:
-1. Use `deepseek-reasoner` model (64K output limit)
-2. Or set `LLM_FORCE_MODEL=true` and configure a model with larger output capacity
+Use `deepseek-reasoner` model (64K limit) or set `LLM_FORCE_MODEL=true`.
 
 ---
 
-**Last Updated**: 2026-04-16
+Last Updated: 2026-04-17
