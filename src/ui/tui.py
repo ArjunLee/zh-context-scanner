@@ -56,6 +56,7 @@ from src.ui.constants import (
     ICON_LANGUAGE,
     ICON_MANUAL,
     ICON_MODE,
+    ICON_RESET,
     ICON_SCAN,
     ICON_SETTINGS,
     PAGE_SIZE,
@@ -78,6 +79,7 @@ from src.ui.keyboard import (
     read_key,
 )
 from src.ui.scan_progress_live import ScanProgressLive
+from src.ui.setup_wizard import run_setup_wizard
 from src.whole_file_translator import WholeFileTranslator
 
 # Console with custom theme (matching VaultSave_Database_Review style)
@@ -141,11 +143,15 @@ async def run_full_scan(
     progress = ScanProgressLive(console, mode="full")
     progress.start()
 
+    paths = [t.path for t in config.scan_targets]
+    excludes = config.exclude_subdirs or config.global_excludes
+
     results: list[tuple[Path, int]] = []
     for file in stream_files_for_scan(
         config.root_path,
-        config.scan_targets,
-        config.global_excludes,
+        paths,
+        config.extensions,
+        excludes,
     ):
         line_count = count_chinese_lines(file, mode=mode)
         progress.update_file(file, line_count > 0, line_count)
@@ -181,11 +187,15 @@ async def run_incremental_scan(
     progress = ScanProgressLive(console, mode="incremental", last_scan_time=last_timestamp)
     progress.start()
 
+    paths = [t.path for t in config.scan_targets]
+    excludes = config.exclude_subdirs or config.global_excludes
+
     results: list[tuple[Path, int]] = []
     for file in stream_files_modified_after(
         config.root_path,
-        config.scan_targets,
-        config.global_excludes,
+        paths,
+        config.extensions,
+        excludes,
         last_timestamp,
     ):
         line_count = count_chinese_lines(file, mode=mode)
@@ -566,10 +576,10 @@ async def handle_scan_results(
 
 def render_preferences_panel(
     prefs: UserPreferences,
+    config: Config,
     selected: int,
 ) -> Panel:
     """Render preferences settings panel with current values."""
-    # Build language display
     lang_current = (
         I18n.get("menu_language_chinese")
         if prefs.language == "zh"
@@ -577,7 +587,6 @@ def render_preferences_panel(
     )
     lang_line = f"{ICON_LANGUAGE} {I18n.get('preferences_language')}: {lang_current}"
 
-    # Build translation mode display
     mode_current = (
         I18n.get("translation_mode_comment_only")
         if prefs.translation_mode == "comment_only"
@@ -585,17 +594,19 @@ def render_preferences_panel(
     )
     mode_line = f"{ICON_MODE} {I18n.get('preferences_translation_mode')}: {mode_current}"
 
-    options = [lang_line, mode_line, f"{ICON_EXIT} {I18n.get('action_return')}"]
+    init_line = f"{ICON_RESET} {I18n.get('preferences_init_project')}"
+    return_line = f"{ICON_EXIT} {I18n.get('action_return')}"
+
+    options = [lang_line, mode_line, init_line, return_line]
 
     body = Text()
     for idx, option in enumerate(options):
         prefix = "→ " if idx == selected else "  "
         style = STYLE_SELECTED if idx == selected else STYLE_NORMAL
-        # Remove the leading spaces from option since prefix already adds spacing
-        display_option = option.strip() if idx < 2 else option.strip()
-        body.append(f"{prefix}{display_option}\n", style=style)
+        body.append(f"{prefix}{option}\n", style=style)
 
-    # Build current status display at top
+    project_name = config.project_name if config.project_name else I18n.get("preferences_no_project")
+
     status_text = Text()
     status_text.append(f"{ICON_SETTINGS} {I18n.get('preferences_title')}\n\n", style=STYLE_TITLE)
     status_text.append(f"{I18n.get('preferences_current')}:\n", style=STYLE_MUTED)
@@ -604,15 +615,12 @@ def render_preferences_panel(
         f"  • {I18n.get('preferences_translation_mode')}: {mode_current}\n",
         style="cyan",
     )
-    status_text.append("\n")
-    status_text.append(I18n.get("preferences_select_hint"), style=STYLE_MUTED)
+    status_text.append(f"  • {I18n.get('preferences_project')}: {project_name}\n", style="magenta")
 
     return Panel(
         Group(
             status_text,
-            Text("\n"),
             body,
-            Text("\n"),
             Text(I18n.get("preferences_footer_hint"), style=STYLE_MUTED),
         ),
         border_style=STYLE_ACCENT,
@@ -621,25 +629,26 @@ def render_preferences_panel(
     )
 
 
-def handle_preferences_menu(config: Config) -> tuple[str, TranslationMode]:
+def handle_preferences_menu(config: Config) -> tuple[str, TranslationMode, bool]:
     """Handle preferences settings menu with Live navigation.
 
     Returns:
-        Tuple of (language, translation_mode) after user interaction.
+        Tuple of (language, translation_mode, should_reinit) after user interaction.
+        should_reinit: True if user triggered project initialization.
     """
     pref_manager = PreferenceManager()
     prefs = pref_manager.load()
 
-    # Apply loaded preferences to system
     I18n.set_lang(prefs.language)
     translation_mode = prefs.get_translation_mode()
 
     selected = 0
-    options_count = 3  # language, mode, return
+    options_count = 4
+    should_reinit = False
 
     with Live(console=console, auto_refresh=True, refresh_per_second=10, screen=True) as live:
         while True:
-            panel = render_preferences_panel(prefs, selected)
+            panel = render_preferences_panel(prefs, config, selected)
             live.update(panel)
 
             key = read_key()
@@ -653,11 +662,9 @@ def handle_preferences_menu(config: Config) -> tuple[str, TranslationMode]:
                 break
             if key == KEY_ENTER:
                 if selected == 0:
-                    # Toggle language
                     new_lang = "en" if prefs.language == "zh" else "zh"
                     prefs = pref_manager.update_language(new_lang)
                 elif selected == 1:
-                    # Toggle translation mode
                     new_mode = (
                         TranslationMode.FULL
                         if prefs.translation_mode == "comment_only"
@@ -665,14 +672,78 @@ def handle_preferences_menu(config: Config) -> tuple[str, TranslationMode]:
                     )
                     prefs = pref_manager.update_translation_mode(new_mode)
                     translation_mode = prefs.get_translation_mode()
+                elif selected == 2:
+                    should_reinit = _handle_init_project_confirm(pref_manager)
+                    if should_reinit:
+                        break
                 else:
-                    # Return to main menu
                     break
 
-    # Apply final preferences
     I18n.set_lang(prefs.language)
     translation_mode = prefs.get_translation_mode()
-    return prefs.language, translation_mode
+    return prefs.language, translation_mode, should_reinit
+
+
+def _handle_init_project_confirm(pref_manager: PreferenceManager) -> bool:
+    """Show project initialization confirmation panel.
+
+    Returns:
+        True if user confirmed, False otherwise.
+    """
+    tool_root = PathRegistry.detect_tool_root()
+    path_registry = PathRegistry(tool_root)
+    config_file = path_registry.config_dir / "Project_Config.yaml"
+
+    selected = 0
+    options_count = 2
+
+    with Live(console=console, auto_refresh=True, refresh_per_second=10, screen=True) as live:
+        while True:
+            options_text = Text()
+            confirm_line = f"{ICON_RESET} {I18n.get('init_confirm_action')}"
+            cancel_line = f"{ICON_EXIT} {I18n.get('init_cancel_action')}"
+
+            prefix_confirm = "→ " if selected == 0 else "  "
+            prefix_cancel = "→ " if selected == 1 else "  "
+            style_confirm = STYLE_SELECTED if selected == 0 else STYLE_NORMAL
+            style_cancel = STYLE_SELECTED if selected == 1 else STYLE_NORMAL
+
+            options_text.append(f"{prefix_confirm}{confirm_line}\n", style=style_confirm)
+            options_text.append(f"{prefix_cancel}{cancel_line}\n", style=style_cancel)
+
+            content = Group(
+                Text(f"{ICON_RESET} {I18n.get('init_confirm_title')}\n\n", style="yellow bold"),
+                Text(I18n.get("init_confirm_message"), style="cyan"),
+                Text("\n"),
+                Text(I18n.get("init_confirm_file"), style="muted"),
+                Text(str(config_file), style="yellow"),
+                Text("\n\n"),
+                options_text,
+                Text("\n"),
+                Text(I18n.get("footer_menu_hint"), style=STYLE_MUTED),
+            )
+
+            panel = Panel(content, border_style="yellow", box=box.ROUNDED, padding=(1, 2))
+            live.update(panel)
+
+            key = read_key()
+            if key == KEY_UP:
+                selected = (selected - 1) % options_count
+                continue
+            if key == KEY_DOWN:
+                selected = (selected + 1) % options_count
+                continue
+            if key == KEY_BACK or key == KEY_ESC:
+                return False
+            if key == KEY_ENTER:
+                if selected == 0:
+                    if config_file.exists():
+                        config_file.unlink()
+                    pref_manager.reset_config()
+                    return True
+                return False
+
+    return False
 
 
 def handle_backup_menu(config: Config) -> None:
@@ -900,9 +971,26 @@ async def handle_manual_path(
             if mode_to_use:
                 # For single file, use its parent directory as relative_root
                 file_parent = path.parent if path.is_file() else path
-                await handle_whole_file_translation(
-                    config, path, mode_to_use, relative_root=file_parent
-                )
+
+                # Wrap translation in Live TUI to maintain consistent visual style
+                with Live(console=console, auto_refresh=True, refresh_per_second=10, screen=True) as live:
+                    translating_text = Text()
+                    translating_text.append(f"✨ {I18n.get('translating_file_label')}\n", style="bold green")
+                    translating_text.append(f"📄 {path.name}\n", style="cyan")
+                    translating_text.append(f"\n{I18n.get('whole_file_wait_hint')}", style="dim")
+
+                    translating_panel = Panel(
+                        translating_text,
+                        title=f"[bold green]🔄 {I18n.get('single_file_translation_mode')}[/bold green]",
+                        border_style="green",
+                        box=box.ROUNDED,
+                        padding=(1, 2),
+                    )
+                    live.update(translating_panel)
+
+                    await handle_whole_file_translation(
+                        config, path, mode_to_use, relative_root=file_parent
+                    )
         else:
             with Live(
                 console=console, auto_refresh=True, refresh_per_second=10, screen=True
@@ -1014,11 +1102,14 @@ async def run_tui(config: Config) -> None:
 
     # Handle sub-menus outside Live context
     if choice == 4:  # Preferences
-        handle_preferences_menu(config)
-        # Reload preferences after returning from preferences menu
+        _, translation_mode, should_reinit = handle_preferences_menu(config)
+        if should_reinit:
+            new_config = run_setup_wizard()
+            if new_config:
+                await run_tui(new_config)
+            return
         translation_mode = pref_manager.apply_to_system()
         lang_info = LANG_MODES[I18n.lang()]
-        # Rebuild title with new language
         title_text = Text()
         title_text.append(
             f"{lang_info.emoji} {I18n.get('header_language')} | ", style="magenta bold"
