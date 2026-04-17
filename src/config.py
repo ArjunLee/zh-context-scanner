@@ -25,19 +25,19 @@ except ImportError:
 
 @dataclass
 class ScanTarget:
-    """Single scan target configuration."""
-    path: str                           # Relative path from root
-    extensions: list[str]               # File extensions to scan
-    exclude_subdirs: list[str] = field(default_factory=list)  # Subdirectories to exclude
+    """Single scan target - path only, extensions/excludes are global."""
+    path: str
 
 
 @dataclass
 class Config:
     """Application configuration."""
-    root_path: Path                     # Project root directory
-    backup_dir: Path                    # Backup directory path
-    project_name: str = ""             # Project name (empty means not loaded)
+    root_path: Path
+    backup_dir: Path
+    project_name: str = ""
     scan_targets: list[ScanTarget] = field(default_factory=list)
+    extensions: list[str] = field(default_factory=list)
+    exclude_subdirs: list[str] = field(default_factory=list)
     global_excludes: list[str] = field(default_factory=lambda: DEFAULT_GLOBAL_EXCLUDES)
 
     # LLM Configuration (OpenAI-compatible API)
@@ -72,7 +72,9 @@ class Config:
         return cls(
             root_path=root,
             project_name=config_data.get("project_name", ""),
-            scan_targets=[ScanTarget(**t) for t in config_data.get("scan_targets", [])],
+            scan_targets=[ScanTarget(path=p) for p in config_data.get("paths", [])],
+            extensions=config_data.get("extensions", []),
+            exclude_subdirs=config_data.get("exclude_subdirs", []),
             global_excludes=config_data.get("global_excludes", DEFAULT_GLOBAL_EXCLUDES),
             backup_dir=path_registry.backup_dir,
             llm_api_key=llm_config["api_key"],
@@ -189,18 +191,18 @@ class Config:
     @staticmethod
     def _load_llm_config(path_registry: PathRegistry) -> dict:
         """Load LLM configuration from .env.local file.
-        
+
         Supports multiple LLM providers with OpenAI-compatible API:
         - DeepSeek (default): https://api.deepseek.com
         - OpenAI: https://api.openai.com/v1
         - Azure OpenAI: Custom endpoint
         - Other compatible services
-        
+
         Environment variables (priority order):
         1. LLM_API_KEY - Universal API key (recommended)
         2. DEEPSEEK_API_KEY - DeepSeek specific (deprecated, use LLM_API_KEY)
         3. OPENAI_API_KEY - OpenAI specific (deprecated, use LLM_API_KEY)
-        
+
         Returns:
             dict with keys: api_key, base_url, model
         """

@@ -138,3 +138,38 @@ class PreferenceManager:
                 prefs.last_config_file = None
                 prefs.setup_completed = False
                 self.save(prefs)
+
+    def reset_config(self) -> UserPreferences:
+        """Reset project config state, clear last_config_file and setup_completed."""
+        prefs = self.load()
+        prefs.last_config_file = None
+        prefs.setup_completed = False
+        self.save(prefs)
+        return prefs
+
+
+def ensure_default_config_exists(path_registry: PathRegistry) -> bool:
+    """Ensure Project_Config.yaml exists by copying from example template.
+
+    This function is called on startup to provide a default config for users
+    who haven't run setup wizard yet. The example template is tracked in git,
+    while the actual user config is excluded via .gitignore.
+
+    Args:
+        path_registry: Path registry for determining config locations
+
+    Returns:
+        True if config file was copied from example, False if it already existed
+    """
+    config_file = path_registry.project_config_file
+    example_file = path_registry.example_project_config
+
+    if config_file.exists():
+        return False
+
+    if not example_file.exists():
+        return False
+
+    config_file.parent.mkdir(parents=True, exist_ok=True)
+    config_file.write_text(example_file.read_text(encoding="utf-8"), encoding="utf-8")
+    return True

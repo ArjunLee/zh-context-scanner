@@ -1,0 +1,48 @@
+# zh-context-scanner project configuration (flat structure)
+#
+# All paths share the same extensions and exclude_subdirs.
+# Edit this file to customize for your project.
+#
+# Usage:
+#   cd your-project/tools/zh-context-scanner
+#   uv run python -m src.main
+
+project_name: Sample_Project
+
+paths:
+- "src/frontend"
+- "src/backend"
+- "src-native"
+- "scripts"
+
+extensions:
+- ".rs"
+- ".tsx"
+- ".ts"
+- ".jsx"
+- ".js"
+- ".py"
+- ".css"
+- ".scss"
+- ".sass"
+- ".less"
+- ".toml"
+- ".yaml"
+- ".yml"
+
+exclude_subdirs:
+- "target"
+- "node_modules"
+- "__pycache__"
+- ".venv"
+- "venv"
+- "env"
+- "dist"
+- "build"
+- "gen"
+- "locales"
+- ".next"
+- ".pytest_cache"
+
+global_excludes:
+- ".git"
