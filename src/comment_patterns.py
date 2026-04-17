@@ -77,18 +77,21 @@ def is_inside_string_or_url(line: str, pos: int) -> bool:
         if re.search(pattern, before):
             return True
 
-    # Accurate quote counting: count quotes where preceding char is not backslash
-    # or the backslash itself is escaped (preceded by another backslash)
+    # Count the number of unescaped quotes: Determine by counting the consecutive backslashes forward.
+    # Odd number of backslashes = quote is escaped, even number of backslashes = quote is not escaped.
     def count_unescaped_quotes(quote_char: str) -> int:
         count = 0
         i = 0
         while i < len(before):
             if before[i] == quote_char:
-                # Check if escaped: preceding backslash not itself escaped
-                if i == 0 or before[i - 1] != '\\':
-                    count += 1
-                elif i >= 2 and before[i - 2] == '\\':
-                    # Double backslash: the quote is not escaped
+                # Count the number of consecutive backslashes forward from the position of the quotation marks.
+                backslash_count = 0
+                j = i - 1
+                while j >= 0 and before[j] == '\\':
+                    backslash_count += 1
+                    j -= 1
+                # An even number of backslashes (including zero) indicates that the quote is not escaped.
+                if backslash_count % 2 == 0:
                     count += 1
             i += 1
         return count
