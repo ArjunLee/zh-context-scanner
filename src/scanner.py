@@ -17,7 +17,6 @@ from pathlib import Path
 
 import regex
 
-from src.comment_patterns import is_comment_line as is_comment_line_universal
 from src.models import TranslationMode
 
 LAST_SCAN_TIMESTAMP_FILE = "last_scan_timestamp.json"
@@ -33,11 +32,6 @@ def contains_chinese(text: str) -> bool:
     return bool(ZH_PATTERN.search(text))
 
 
-def is_comment_line(line: str, file_ext: str) -> bool:
-    """Check if a line is a comment line based on file extension."""
-    return is_comment_line_universal(line, file_ext)
-
-
 def file_contains_chinese(file_path: Path) -> bool:
     """Check if a file contains any Chinese text."""
     try:
@@ -51,22 +45,25 @@ def file_contains_chinese(file_path: Path) -> bool:
 
 
 def count_chinese_lines(file_path: Path, mode: TranslationMode = TranslationMode.FULL) -> int:
-    """Count lines containing Chinese text in a file based on translation mode."""
-    count = 0
-    file_ext = file_path.suffix.lower()
+    """Count lines containing Chinese text in a file based on translation mode.
 
-    try:
-        with open(file_path, encoding="utf-8", errors="replace") as f:
-            for line in f:
-                if contains_chinese(line):
-                    if mode == TranslationMode.COMMENT_ONLY:
-                        if is_comment_line(line, file_ext):
-                            count += 1
-                    else:
+    For COMMENT_ONLY mode, uses extract_all_comments to properly detect
+    block comment inner lines (without * prefix).
+    """
+    if mode == TranslationMode.FULL:
+        count = 0
+        try:
+            with open(file_path, encoding="utf-8", errors="replace") as f:
+                for line in f:
+                    if contains_chinese(line):
                         count += 1
-    except Exception:
-        pass
-    return count
+        except Exception:
+            pass
+        return count
+
+    from src.comment_patterns import extract_all_comments
+    comments = extract_all_comments(file_path)
+    return len(comments)
 
 
 def collect_files(
