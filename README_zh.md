@@ -31,7 +31,7 @@ uv sync
 ```bash
 LLM_API_KEY=sk-your-api-key
 LLM_BASE_URL=https://api.deepseek.com
-LLM_MODEL=deepseek-chat
+LLM_MODEL=deepseek-v4-flash
 ```
 
 > 详见 [LLM_CONFIG_GUIDE_zh.md](LLM_CONFIG_GUIDE_zh.md) 支持的所有提供商。

@@ -48,7 +48,7 @@ class Translator:
         self,
         api_key: str,
         api_url: str = "https://api.deepseek.com/chat/completions",  # Legacy: use llm_client.py instead
-        model: str = "deepseek-chat",
+        model: str = "deepseek-v4-flash",
         timeout: float = 30.0,
     ) -> None:
         self.api_key = api_key

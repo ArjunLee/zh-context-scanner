@@ -12,7 +12,7 @@ LLM_API_KEY=sk-your-api-key
 
 # 可选（默认：DeepSeek）
 LLM_BASE_URL=https://api.deepseek.com
-LLM_MODEL=deepseek-chat
+LLM_MODEL=deepseek-v4-flash
 
 # 可选：强制使用配置模型
 LLM_FORCE_MODEL=false
@@ -22,7 +22,7 @@ LLM_FORCE_MODEL=false
 
 | 提供商 | Base URL | 默认模型 |
 |--------|----------|----------|
-| DeepSeek | `https://api.deepseek.com` | `deepseek-chat` |
+| DeepSeek | `https://api.deepseek.com` | `deepseek-v4-flash` |
 | OpenAI | `https://api.openai.com/v1` | `gpt-5.3` |
 | Moonshot | `https://api.moonshot.cn/v1` | `moonshot-v1-8k` |
 | MiniMax | `https://api.minimax.chat/v1/text/chatcompletion_v2` | `abab6.5s` |
@@ -52,13 +52,13 @@ LLM_FORCE_MODEL=false
 
 | 模式 | 自动模型 | 输出限制 |
 |------|----------|----------|
-| 仅翻译注释 | `deepseek-chat` | 8K |
-| 全内容翻译 | `deepseek-reasoner` | 64K |
+| 仅翻译注释 | `deepseek-v4-flash` | 8K |
+| 全内容翻译 | `deepseek-v4-pro` | 64K |
 
 强制覆盖：
 
 ```bash
-LLM_MODEL=deepseek-chat
+LLM_MODEL=deepseek-v4-flash
 LLM_FORCE_MODEL=true
 ```
 
@@ -69,7 +69,7 @@ LLM_FORCE_MODEL=true
 ```bash
 LLM_API_KEY=sk-xxx
 LLM_BASE_URL=https://api.deepseek.com
-LLM_MODEL=deepseek-chat
+LLM_MODEL=deepseek-v4-flash
 ```
 
 ### OpenAI
@@ -98,7 +98,7 @@ LLM_MODEL=local-model
 
 **翻译失败**：检查 `LLM_API_KEY` 和网络连接。
 
-**输出截断**：使用 `deepseek-reasoner`（64K 限制）或设置 `LLM_FORCE_MODEL=true`。
+**输出截断**：使用 `deepseek-v4-pro`（64K 限制）或设置 `LLM_FORCE_MODEL=true`。
 
 ---
 

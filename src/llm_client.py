@@ -64,8 +64,8 @@ class LLMClientManager:
 
     @staticmethod
     def get_default_model() -> str:
-        """Get default model name (DeepSeek)."""
-        return "deepseek-chat"
+        """Get default model name (DeepSeek v4)."""
+        return "deepseek-v4-flash"
 
 
 # Default configuration constants

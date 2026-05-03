@@ -12,7 +12,7 @@ LLM_API_KEY=sk-your-api-key
 
 # Optional (default: DeepSeek)
 LLM_BASE_URL=https://api.deepseek.com
-LLM_MODEL=deepseek-chat
+LLM_MODEL=deepseek-v4-flash
 
 # Optional: Force use configured model
 LLM_FORCE_MODEL=false
@@ -22,7 +22,7 @@ LLM_FORCE_MODEL=false
 
 | Provider | Base URL | Default Model |
 |----------|----------|---------------|
-| DeepSeek | `https://api.deepseek.com` | `deepseek-chat` |
+| DeepSeek | `https://api.deepseek.com` | `deepseek-v4-flash` |
 | OpenAI | `https://api.openai.com/v1` | `gpt-5.3` |
 | Moonshot | `https://api.moonshot.cn/v1` | `moonshot-v1-8k` |
 | MiniMax | `https://api.minimax.chat/v1/text/chatcompletion_v2` | `abab6.5s` |
@@ -52,13 +52,13 @@ Tool auto-selects model based on translation mode (unless `LLM_FORCE_MODEL=true`
 
 | Mode | Auto Model | Output Limit |
 |------|------------|---------------|
-| Comment Only | `deepseek-chat` | 8K |
-| Full Content | `deepseek-reasoner` | 64K |
+| Comment Only | `deepseek-v4-flash` | 8K |
+| Full Content | `deepseek-v4-pro` | 64K |
 
 Force override:
 
 ```bash
-LLM_MODEL=deepseek-chat
+LLM_MODEL=deepseek-v4-flash
 LLM_FORCE_MODEL=true
 ```
 
@@ -69,7 +69,7 @@ LLM_FORCE_MODEL=true
 ```bash
 LLM_API_KEY=sk-xxx
 LLM_BASE_URL=https://api.deepseek.com
-LLM_MODEL=deepseek-chat
+LLM_MODEL=deepseek-v4-flash
 ```
 
 ### OpenAI
@@ -98,7 +98,7 @@ LLM_MODEL=local-model
 
 **Translation failed**: Check `LLM_API_KEY` and network connection.
 
-**Output truncated**: Use `deepseek-reasoner` (64K limit) or set `LLM_FORCE_MODEL=true`.
+**Output truncated**: Use `deepseek-v4-pro` (64K limit) or set `LLM_FORCE_MODEL=true`.
 
 ---
 

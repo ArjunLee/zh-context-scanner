@@ -31,7 +31,7 @@ Create `.env.local`:
 ```bash
 LLM_API_KEY=sk-your-api-key
 LLM_BASE_URL=https://api.deepseek.com
-LLM_MODEL=deepseek-chat
+LLM_MODEL=deepseek-v4-flash
 ```
 
 > See [LLM_CONFIG_GUIDE.md](LLM_CONFIG_GUIDE.md) for all supported providers.

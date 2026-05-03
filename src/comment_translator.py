@@ -51,7 +51,7 @@ class CommentTranslator:
     def __init__(
         self,
         api_key: str,
-        model: str = "deepseek-chat",
+        model: str = "deepseek-v4-flash",
         base_url: str = "https://api.deepseek.com",
         max_concurrent: int = 15,
     ) -> None:
@@ -343,7 +343,7 @@ class CommentTranslator:
 async def translate_file_comments(
     file_path: Path,
     api_key: str,
-    model: str = "deepseek-chat",
+    model: str = "deepseek-v4-flash",
 ) -> tuple[list[CommentTranslationMatch], list[CommentTranslation]]:
     translator = CommentTranslator(api_key=api_key, model=model)
 
