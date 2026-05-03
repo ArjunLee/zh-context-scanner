@@ -86,7 +86,7 @@ uv run python -m src.main
 
 ### 输出截断
 
-使用 `deepseek-reasoner` 模型（64K 限制）或设置 `LLM_FORCE_MODEL=true`。
+使用 `deepseek-v4-pro` 模型（64K 限制）或设置 `LLM_FORCE_MODEL=true`。
 
 ---
 

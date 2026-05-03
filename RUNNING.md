@@ -86,7 +86,7 @@ Use launch scripts (`run.ps1`, `run.bat`) which auto-clear the variable.
 
 ### Output truncated
 
-Use `deepseek-reasoner` model (64K limit) or set `LLM_FORCE_MODEL=true`.
+Use `deepseek-v4-pro` model (64K limit) or set `LLM_FORCE_MODEL=true`.
 
 ---
 

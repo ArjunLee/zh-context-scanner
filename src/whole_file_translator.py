@@ -29,9 +29,9 @@ MAX_TOKENS = 32000  # Approximate token limit for safety
 CHARS_PER_TOKEN = 2.5  # Approximate chars per token for Chinese code
 MAX_CONCURRENT = 3  # Max concurrent API calls
 
-# DeepSeek model output limits (from official docs)
-# deepseek-chat: DEFAULT 4K, MAXIMUM 8K
-# deepseek-reasoner: DEFAULT 32K, MAXIMUM 64K
+# DeepSeek v4 model output limits (from official docs 2026-05)
+# deepseek-v4-flash: DEFAULT 4K, MAXIMUM 8K
+# deepseek-v4-pro: DEFAULT 32K, MAXIMUM 64K
 DEEPSEEK_CHAT_MAX_OUTPUT = 8192
 DEEPSEEK_REASONER_MAX_OUTPUT = 64000
 
@@ -56,15 +56,15 @@ class WholeFileTranslator:
     - FULL: Translate ALL Chinese text (whole-file)
 
     Auto-binding feature:
-    - COMMENT_ONLY -> deepseek-chat (fast, cheap, 8K output)
-    - FULL -> deepseek-reasoner (64K output for large files)
+    - COMMENT_ONLY -> deepseek-v4-flash (fast, cheap, 8K output)
+    - FULL -> deepseek-v4-pro (64K output for large files)
     - Can be overridden with force_model=True
     """
 
     # Recommended models for each translation mode
     RECOMMENDED_MODELS = {
-        TranslationMode.COMMENT_ONLY: "deepseek-chat",
-        TranslationMode.FULL: "deepseek-reasoner",
+        TranslationMode.COMMENT_ONLY: "deepseek-v4-flash",
+        TranslationMode.FULL: "deepseek-v4-pro",
     }
 
     @staticmethod
@@ -77,12 +77,12 @@ class WholeFileTranslator:
         Returns:
             Recommended model name
         """
-        return WholeFileTranslator.RECOMMENDED_MODELS.get(mode, "deepseek-chat")
+        return WholeFileTranslator.RECOMMENDED_MODELS.get(mode, "deepseek-v4-flash")
 
     def __init__(
         self,
         api_key: str,
-        model: str = "deepseek-chat",
+        model: str = "deepseek-v4-flash",
         base_url: str = "https://api.deepseek.com",
         max_concurrent: int = MAX_CONCURRENT,
         force_model: bool = False,
@@ -130,11 +130,11 @@ class WholeFileTranslator:
         # Output size is typically similar to input size for translation
         estimated_output = int(estimated_input_tokens * 1.1)
 
-        if self.model == "deepseek-reasoner":
-            # deepseek-reasoner: max 64K output
+        if self.model == "deepseek-v4-pro":
+            # deepseek-v4-pro: max 64K output
             return min(estimated_output, DEEPSEEK_REASONER_MAX_OUTPUT)
         else:
-            # deepseek-chat: max 8K output
+            # deepseek-v4-flash: max 8K output
             return min(estimated_output, DEEPSEEK_CHAT_MAX_OUTPUT)
 
     async def close(self) -> None:
@@ -156,7 +156,7 @@ class WholeFileTranslator:
 
         Auto-binding:
         - If force_model=False, automatically select best model for mode
-        - COMMENT_ONLY -> deepseek-chat, FULL -> deepseek-reasoner
+        - COMMENT_ONLY -> deepseek-v4-flash, FULL -> deepseek-v4-pro
 
         Args:
             file_path: Path to the source file
@@ -295,13 +295,13 @@ class WholeFileTranslator:
         # Replace file header keys with cached translations before sending to LLM
         content_for_translation = replace_file_header_keys_in_content(original_content)
 
-        max_output_limit = DEEPSEEK_REASONER_MAX_OUTPUT if self.model == "deepseek-reasoner" else DEEPSEEK_CHAT_MAX_OUTPUT
+        max_output_limit = DEEPSEEK_REASONER_MAX_OUTPUT if self.model == "deepseek-v4-pro" else DEEPSEEK_CHAT_MAX_OUTPUT
 
         # Check if file output would exceed model's max_tokens limit
         # Output size ≈ input size for translation, add 10% buffer
         estimated_output_tokens = int(estimated_tokens * 1.1)
         if estimated_output_tokens > max_output_limit:
-            model_hint = "deepseek-reasoner (64K output)" if self.model == "deepseek-chat" else "split into smaller files"
+            model_hint = "deepseek-v4-pro (64K output)" if self.model == "deepseek-v4-flash" else "split into smaller files"
             return FileTranslationResult(
                 file_path=file_path,
                 original_content=original_content,
@@ -354,7 +354,7 @@ class WholeFileTranslator:
             try:
                 client = self._get_client()
                 # DeepSeek API default max_tokens=4096, must set explicitly
-                # deepseek-chat: max 8K output; deepseek-reasoner: max 64K output
+                # deepseek-v4-flash: max 8K output; deepseek-v4-pro: max 64K output
                 max_output_tokens = self._calculate_max_output_tokens(estimated_tokens)
 
                 response = await client.chat.completions.create(
